@@ -188,7 +188,11 @@ private fun HabitCard(
     val color = Color(AndroidColor.parseColor(hv.habit.color))
     LifeCard(modifier = modifier) {
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-            Text(hv.habit.name, style = MaterialTheme.typography.titleMedium, color = Ink)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(9.dp).clip(CircleShape).background(color))
+                Spacer(Modifier.width(8.dp))
+                Text(hv.habit.name, style = MaterialTheme.typography.titleMedium, color = Ink)
+            }
             IconButton(onClick = onDelete) {
                 Icon(Icons.Filled.Delete, contentDescription = "删除", tint = InkSoft)
             }

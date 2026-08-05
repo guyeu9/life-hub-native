@@ -1,55 +1,60 @@
 package com.lifehub.ui.home
 
+import android.widget.Toast
+import java.util.Calendar
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.ui.layout.Layout
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lifehub.LifeHubApplication
 import com.lifehub.charts.RingProgress
 import com.lifehub.data.SettingsRepository
-import com.lifehub.ui.components.AnimatedHeader
-import com.lifehub.ui.components.AmountStepper
-import com.lifehub.ui.components.ConfettiOverlay
-import com.lifehub.ui.components.EmptyState
-import com.lifehub.ui.components.LifeCard
-import com.lifehub.ui.components.PillTag
-import com.lifehub.ui.components.SegmentedButton
-import com.lifehub.ui.components.SuccessButton
-import com.lifehub.ui.components.animateItemSlide
-import com.lifehub.ui.components.hapticClick
-import com.lifehub.ui.components.pressScale
+import com.lifehub.data.entity.LedgerEntity
+import com.lifehub.ui.components.*
 import com.lifehub.ui.theme.*
 import com.lifehub.util.money0
+import com.lifehub.util.money2
 import com.lifehub.util.vibrateLight
 import com.lifehub.util.vibrateSuccess
-import com.lifehub.util.yuan
 import com.lifehub.viewmodel.HomeItem
 import com.lifehub.viewmodel.HomeUiState
 import com.lifehub.viewmodel.HomeViewModel
 import com.lifehub.viewmodel.HomeViewModelFactory
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 @Composable
 fun HomeScreen(
     onNavigate: (String) -> Unit,
     onExport: () -> Unit,
-    onImport: () -> Unit
+    onImport: () -> Unit,
+    onOpenSettings: () -> Unit = {}
 ) {
-    val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as LifeHubApplication
+    val app = LocalContext.current.applicationContext as LifeHubApplication
     val vm: HomeViewModel = viewModel(factory = HomeViewModelFactory(app))
     val state by vm.uiState.collectAsState()
     val fields by app.container.settings.fields.collectAsState(initial = SettingsRepository.FieldTable())
+    val quickAmounts by app.container.settings.quickAmounts.collectAsState(initial = SettingsRepository.QuickAmounts())
     val scope = rememberCoroutineScope()
 
     // 随手记一笔 UI 状态
@@ -59,54 +64,48 @@ fun HomeScreen(
     var qlRebateOf by remember { mutableStateOf("") }
     var confettiKey by remember { mutableIntStateOf(0) }
 
+    val typeCode = when (qlType) { "支出" -> "expense"; "收入" -> "income"; else -> "rebate" }
+    val typeColor = when (qlType) {
+        "支出" -> Color(0xFFB0433A)
+        "收入" -> Color(0xFF4C7554)
+        else -> Color(0xFFA8842F)
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
-            contentPadding = PaddingValues(top = 24.dp, bottom = 24.dp)
+            contentPadding = PaddingValues(top = 18.dp, bottom = 28.dp)
         ) {
+            item { TopBar(dateText = todayDateText(), onExport = onExport, onImport = onImport, onSettings = onOpenSettings) }
+
+            item { LifeIndexCard(state, vm) }
+
+            // 随手记一笔（原网页在生活指数之后、今天要处理之前）
             item {
-                // 顶部：标题 + 备份/恢复
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    AnimatedHeader(title = "今")
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        SuccessButton(text = "备份", onClick = onExport)
-                        SuccessButton(text = "恢复", onClick = onImport)
-                    }
+                    Text(
+                        text = "随手记一笔",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Ink
+                    )
+                    Text(
+                        text = "点类型 · 点分类 · 记完自动存",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = InkSoft
+                    )
                 }
             }
-
-            item { LifeIndexCard(state, vm) }
-
-            item {
-                Text("今天要处理", style = MaterialTheme.typography.titleMedium, color = Ink)
-            }
-
-            itemsIndexed(state.todayItems) { index, item ->
-                TodayRow(item = item, index = index, onClick = {
-                    when (item.type) {
-                        "schedule" -> onNavigate("schedule")
-                        "habit" -> onNavigate("habit")
-                    }
-                })
-            }
-            if (state.todayItems.isEmpty()) {
-                item { EmptyState("今天没有待处理的事项，真清爽") }
-            }
-
-            item {
-                Text("随手记一笔", style = MaterialTheme.typography.titleMedium, color = Ink)
-            }
-
             item {
                 QuickLedgerCard(
                     type = qlType,
+                    typeColor = typeColor,
                     onTypeChange = { qlType = it },
                     amount = qlAmount,
                     onAmountChange = { qlAmount = it },
@@ -119,16 +118,24 @@ fun HomeScreen(
                         "收入" -> fields.incomeCats
                         else -> fields.rebateCats
                     },
+                    quickAmounts = when (qlType) {
+                        "支出" -> quickAmounts.expense
+                        "收入" -> quickAmounts.income
+                        else -> quickAmounts.rebate
+                    },
+                    onQuickAmount = { qlAmount = it },
+                    onEditQuickAmounts = onOpenSettings,
                     onSave = { cat ->
-                        val typeCode = when (qlType) { "支出" -> "expense"; "收入" -> "income"; else -> "rebate" }
                         val amt = qlAmount.toDoubleOrNull() ?: 0.0
-                        val rebOf = qlRebateOf.toDoubleOrNull() ?: 0.0
                         if (amt > 0) {
                             scope.launch {
                                 app.container.ledger.insert(
-                                    com.lifehub.data.entity.LedgerEntity(
-                                        type = typeCode, category = cat, amount = amt, note = qlNote,
-                                        rebateOf = rebOf,
+                                    LedgerEntity(
+                                        type = typeCode,
+                                        category = cat,
+                                        amount = amt,
+                                        note = qlNote,
+                                        rebateOf = qlRebateOf.toDoubleOrNull() ?: 0.0,
                                         date = System.currentTimeMillis()
                                     )
                                 )
@@ -136,13 +143,110 @@ fun HomeScreen(
                                 qlNote = ""
                                 qlRebateOf = ""
                                 confettiKey++
+                                Toast.makeText(app, "记好了", Toast.LENGTH_SHORT).show()
                             }
                         }
                     }
                 )
             }
+
+            // 今天要处理
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "今天要处理",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Ink
+                    )
+                    Text(
+                        text = buildString {
+                            append("${state.todayItems.size} 项")
+                            if (state.overdueCount > 0) append(" · 含 ${state.overdueCount} 项逾期")
+                        },
+                        style = MaterialTheme.typography.labelMedium,
+                        color = InkSoft
+                    )
+                }
+            }
+
+            if (state.todayItems.isEmpty()) {
+                item { EmptyState("今天该做的都做完了，去休息吧") }
+            } else {
+                itemsIndexed(state.todayItems) { index, item ->
+                    TodayRow(
+                        item = item,
+                        index = index,
+                        onAction = {
+                            scope.launch {
+                                when (item.type) {
+                                    "schedule" -> vm.completeSchedule(item.id)
+                                    "habit" -> vm.quickHabit(item)
+                                    "wish" -> vm.buyDone(item.id)
+                                    "ledger_tip" -> onNavigate("ledger")
+                                    "fitness_tip" -> onNavigate("fitness")
+                                }
+                            }
+                        },
+                        onNavigate = onNavigate
+                    )
+                }
+            }
+
+            // 今日速览
+            item {
+                Text(
+                    text = "今日速览",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Ink
+                )
+            }
+            item { TodayMetrics(state) }
         }
         ConfettiOverlay(trigger = confettiKey)
+    }
+}
+
+private fun todayDateText(): String {
+    val cal = Calendar.getInstance()
+    val week = "日一二三四五六"
+    return SimpleDateFormat("M月d日", Locale.CHINA).format(cal.time) + " · 周" + week[cal.get(Calendar.DAY_OF_WEEK) - 1]
+}
+
+@Composable
+private fun TopBar(
+    dateText: String,
+    onExport: () -> Unit,
+    onImport: () -> Unit,
+    onSettings: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column {
+            Text(
+                text = "今日",
+                style = MaterialTheme.typography.displayMedium,
+                color = Ink
+            )
+            Text(
+                text = dateText,
+                style = MaterialTheme.typography.labelMedium,
+                color = InkSoft
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = onExport) { Text("备份", color = Clay) }
+            TextButton(onClick = onImport) { Text("恢复", color = Clay) }
+            IconButton(onClick = onSettings) {
+                Icon(Icons.Default.Settings, contentDescription = "设置", tint = Ink)
+            }
+        }
     }
 }
 
@@ -150,35 +254,84 @@ fun HomeScreen(
 private fun LifeIndexCard(state: HomeUiState, vm: HomeViewModel) {
     val todoPct = vm.todoPct(state)
     val habitPct = vm.habitPct(state)
-    // 综合生活指数 = 待办完成率×30% + 习惯完成率×30% + 今日记账(10) + 预算健康度(10) + 身体数据(20)
-    val overall = vm.overallPct(state) / 100f
+    val overall = vm.overallPct(state)
+    val progress = overall / 100f
+
+    val levelText = when {
+        overall >= 85 -> "从容"
+        overall >= 70 -> "在线"
+        overall >= 50 -> "散漫"
+        else -> "待启动"
+    }
+    val sayText = when {
+        overall >= 85 -> "状态很好。保持这个节奏，不用额外加码。"
+        overall >= 70 -> "整体在线。挑一两件最要紧的收个尾，今天就算赢。"
+        overall >= 50 -> "有点松。先把标红的处理掉，剩下的慢慢来。"
+        else -> "今天还没启动。从最上面那条开始，做完一件就好很多。"
+    }
+    val ringColor = when {
+        overall >= 80 -> Color(0xFF5D7561)
+        overall >= 60 -> Color(0xFFA8842F)
+        else -> Color(0xFFB0433A)
+    }
 
     LifeCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
             RingProgress(
-                progress = overall,
-                color = Clay,
+                progress = progress,
+                color = ringColor,
                 trackColor = Line,
                 stroke = 14f,
                 modifier = Modifier.size(110.dp),
                 centerLabel = {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("${((overall * 100).toInt())}%", style = MaterialTheme.typography.titleLarge, color = Ink)
-                        Text("今日指数", style = MaterialTheme.typography.labelSmall, color = InkSoft)
+                        Text("$overall", style = MaterialTheme.typography.titleLarge, color = Ink)
+                        Text("INDEX", style = MaterialTheme.typography.labelSmall, color = InkSoft)
                     }
                 }
             )
             Spacer(Modifier.width(16.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                DimRow("待办", if (state.todoTotal == 0) "未设置" else "$todoPct%", todoPct / 100f, if (state.todoTotal == 0) Line else Clay)
-                DimRow("习惯", if (state.habitTotal == 0) "未设置" else "$habitPct%", habitPct / 100f, if (state.habitTotal == 0) Line else Sage)
-                DimMoney(
-                    "记账",
-                    if (state.ledgerCount == 0) "未记账" else "收${money0(state.ledgerIncome)}·支${money0(state.ledgerExpense)}·记${state.ledgerCount}笔"
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = levelText,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Ink,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = sayText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = InkSoft,
+                    lineHeight = MaterialTheme.typography.bodySmall.lineHeight
+                )
+                Spacer(Modifier.height(4.dp))
+                DimRow(
+                    label = "待办",
+                    value = if (state.todoTotal == 0) "未设置" else "$todoPct%",
+                    progress = if (state.todoTotal == 0) 0f else todoPct / 100f,
+                    color = if (state.todoTotal == 0) Line else Color(0xFF4A6478)
+                )
+                DimRow(
+                    label = "习惯",
+                    value = if (state.habitTotal == 0) "未设置" else "$habitPct%",
+                    progress = if (state.habitTotal == 0) 0f else habitPct / 100f,
+                    color = if (state.habitTotal == 0) Line else Color(0xFF5D7561)
                 )
                 DimMoney(
-                    "身体",
-                    if (state.todayWeight != null) "今 ${state.todayWeight}kg" + (if (state.todayBodyFat != null) " · ${state.todayBodyFat}%脂" else "") else "未称重"
+                    label = "记账",
+                    value = if (!state.ledgerConfigured) "未设置"
+                    else "收 ¥${money2(state.ledgerIncome)} · 支 ¥${money2(state.ledgerExpense)} · 记 ${state.ledgerCount} 笔 · 今日净支出 ¥${money2(state.ledgerNet)}"
+                )
+                DimMoney(
+                    label = "身体",
+                    value = if (state.lastWeight != null) {
+                        if (state.weighedToday) {
+                            "今日 ${state.todayWeight}kg" + (state.todayBodyFat?.let { " · ${kotlin.math.round(it).toInt()}% 脂" } ?: "")
+                        } else "今日未称重"
+                    } else "未设置"
                 )
             }
         }
@@ -195,7 +348,7 @@ private fun DimRow(label: String, value: String, progress: Float, color: Color) 
         Spacer(Modifier.height(4.dp))
         LinearProgressIndicator(
             progress = progress,
-            modifier = Modifier.fillMaxWidth().height(4.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(2.dp)),
+            modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
             color = color,
             trackColor = Line
         )
@@ -211,34 +364,75 @@ private fun DimMoney(label: String, value: String) {
 }
 
 @Composable
-private fun TodayRow(item: HomeItem, index: Int, onClick: () -> Unit) {
+private fun TodayRow(
+    item: HomeItem,
+    index: Int,
+    onAction: () -> Unit,
+    onNavigate: (String) -> Unit
+) {
+    val ctx = LocalContext.current
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .animateItemSlide(index)
-            .hapticClick { onClick() },
+            .hapticClick {
+                if (item.type == "ledger_tip") onNavigate("ledger")
+                else if (item.type == "fitness_tip") onNavigate("fitness")
+            },
         color = Color.Transparent
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Box(
-                modifier = Modifier.size(8.dp).clip(androidx.compose.foundation.shape.CircleShape)
-                    .background(if (item.overdue) Danger else Clay)
+                modifier = Modifier.size(8.dp).clip(CircleShape)
+                    .background(if (item.overdue) Danger else Color(0xFFB8B2A6))
             )
-            Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(item.title, style = MaterialTheme.typography.bodyMedium, color = Ink)
                 Text(item.sub, style = MaterialTheme.typography.labelSmall, color = if (item.overdue) Danger else InkSoft)
+            }
+            if (item.action.isNotBlank()) {
+                SmallButton(
+                    text = item.action,
+                    highlighted = item.overdue,
+                    onClick = {
+                        ctx.vibrateSuccess()
+                        onAction()
+                    }
+                )
             }
         }
     }
 }
 
 @Composable
+private fun SmallButton(text: String, highlighted: Boolean, onClick: () -> Unit) {
+    val bg = if (highlighted) Clay else PaperCard
+    val txt = if (highlighted) PaperCard else Ink
+    Surface(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .pressScale(scale = 0.94f, onClick = onClick),
+        color = bg,
+        border = androidx.compose.foundation.BorderStroke(1.dp, if (highlighted) Clay else Line)
+    ) {
+        Text(
+            text = text,
+            color = txt,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+        )
+    }
+}
+
+@Composable
 private fun QuickLedgerCard(
     type: String,
+    typeColor: Color,
     onTypeChange: (String) -> Unit,
     amount: String,
     onAmountChange: (String) -> Unit,
@@ -247,61 +441,149 @@ private fun QuickLedgerCard(
     rebateOf: String,
     onRebateOfChange: (String) -> Unit,
     categories: List<SettingsRepository.CategoryDef>,
+    quickAmounts: List<Double>,
+    onQuickAmount: (String) -> Unit,
+    onEditQuickAmounts: () -> Unit,
     onSave: (String) -> Unit
 ) {
-    val ctx = androidx.compose.ui.platform.LocalContext.current
-    var selectedCat by remember { mutableStateOf(categories.firstOrNull()?.name ?: "") }
+    val ctx = LocalContext.current
+    var selectedCat by remember { mutableStateOf("") }
 
-    // 类型切换时重置选中分类
     LaunchedEffect(type) {
-        selectedCat = categories.firstOrNull()?.name ?: ""
+        selectedCat = ""
     }
 
     LifeCard {
-        SegmentedButton(
-            options = listOf("支出", "收入", "返利"),
-            selected = type,
-            onSelect = onTypeChange
-        )
-        Spacer(Modifier.height(12.dp))
-        // 分类胶囊
+        // 类型选择（彩色胶囊，对齐网页）
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            listOf("支出" to Color(0xFFB0433A), "收入" to Color(0xFF4C7554), "返利" to Color(0xFFA8842F))
+                .forEach { (label, color) ->
+                    val selected = type == label
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .pressScale(scale = 0.97f) {
+                                ctx.vibrateLight()
+                                onTypeChange(label)
+                            },
+                        color = if (selected) color else Color.Transparent,
+                        border = androidx.compose.foundation.BorderStroke(1.5.dp, color)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(vertical = 10.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier.size(9.dp).clip(CircleShape)
+                                    .background(if (selected) PaperCard else color)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                label,
+                                color = if (selected) PaperCard else color,
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                }
+        }
+
+        Spacer(Modifier.height(14.dp))
+
+        // 金额输入
+        AmountStepper(value = amount, onValueChange = onAmountChange, accentColor = typeColor)
+
+        Spacer(Modifier.height(12.dp))
+
+        // 常用金额
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            categories.forEach { cat ->
-                PillTag(
-                    text = cat.name,
-                    color = Color(android.graphics.Color.parseColor(cat.color)),
-                    selected = selectedCat == cat.name,
+            Text("常用金额", style = MaterialTheme.typography.labelMedium, color = InkSoft)
+            TextButton(onClick = onEditQuickAmounts) {
+                Text("自定义", style = MaterialTheme.typography.labelMedium, color = Clay)
+            }
+        }
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            quickAmounts.forEach { amt ->
+                QuickAmountChip(
+                    amount = amt,
+                    color = typeColor,
                     onClick = {
                         ctx.vibrateLight()
-                        selectedCat = cat.name
-                    },
-                    modifier = Modifier.pressScale { selectedCat = cat.name }
+                        onQuickAmount(amt.toInt().toString())
+                    }
                 )
             }
         }
-        Spacer(Modifier.height(12.dp))
-        AmountStepper(value = amount, onValueChange = onAmountChange)
-        // 返利类型：显示"对应消费"输入框
+
+        Spacer(Modifier.height(14.dp))
+
+        // 分类
+        Text("分类", style = MaterialTheme.typography.labelMedium, color = InkSoft)
+        Spacer(Modifier.height(8.dp))
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(9.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            categories.forEach { cat ->
+                val catColor = try {
+                    Color(android.graphics.Color.parseColor(cat.color))
+                } catch (_: Exception) {
+                    Clay
+                }
+                val selected = selectedCat == cat.name
+                Surface(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .pressScale(scale = 0.96f) {
+                            ctx.vibrateLight()
+                            selectedCat = cat.name
+                        },
+                    color = if (selected) catColor.copy(alpha = 0.12f) else PaperCard,
+                    border = androidx.compose.foundation.BorderStroke(1.5.dp, if (selected) catColor else Line)
+                ) {
+                    Text(
+                        cat.name,
+                        color = if (selected) catColor else InkSoft,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
+                }
+            }
+        }
+
+        // 返利：对应消费
         if (type == "返利") {
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(12.dp))
             OutlinedTextField(
                 value = rebateOf,
                 onValueChange = onRebateOfChange,
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("对应消费金额（可选）") },
+                label = { Text("对应消费（原价，选填，用于算返利率）") },
+                placeholder = { Text("如 34.00") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Clay,
+                    focusedBorderColor = typeColor,
                     unfocusedBorderColor = Line
                 )
             )
         }
-        Spacer(Modifier.height(8.dp))
+
+        Spacer(Modifier.height(12.dp))
         OutlinedTextField(
             value = note,
             onValueChange = onNoteChange,
@@ -309,15 +591,231 @@ private fun QuickLedgerCard(
             placeholder = { Text("备注（可选）") },
             singleLine = true,
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Clay,
+                focusedBorderColor = typeColor,
                 unfocusedBorderColor = Line
             )
         )
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(14.dp))
         SuccessButton(
-            text = "记一笔",
-            onClick = { onSave(selectedCat) },
-            modifier = Modifier.fillMaxWidth()
+            text = "记下这笔${type}",
+            onClick = {
+                val amt = amount.toDoubleOrNull() ?: 0.0
+                if (amt <= 0) {
+                    Toast.makeText(ctx, "先填个金额", Toast.LENGTH_SHORT).show()
+                    return@SuccessButton
+                }
+                if (selectedCat.isBlank()) {
+                    Toast.makeText(ctx, "先点选一个分类", Toast.LENGTH_SHORT).show()
+                    return@SuccessButton
+                }
+                onSave(selectedCat)
+                selectedCat = ""
+            },
+            modifier = Modifier.fillMaxWidth(),
+            containerColor = typeColor
         )
+    }
+}
+
+@Composable
+private fun QuickAmountChip(amount: Double, color: Color, onClick: () -> Unit) {
+    val ctx = LocalContext.current
+    Surface(
+        modifier = Modifier
+            .clip(RoundedCornerShape(18.dp))
+            .pressScale(scale = 0.94f) {
+                ctx.vibrateLight()
+                onClick()
+            },
+        color = PaperCard,
+        border = androidx.compose.foundation.BorderStroke(1.dp, Line)
+    ) {
+        Text(
+            text = amount.toInt().toString(),
+            color = InkSoft,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 7.dp)
+        )
+    }
+}
+
+@Composable
+private fun TodayMetrics(state: HomeUiState) {
+    LifeCard {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            val todayExp = state.ledgerExpense
+            val todayReb = state.ledgerRebate
+            val left = state.budget - state.budgetUsed
+            MetricLine(
+                label = "今日支出",
+                value = "${money0(todayExp)} 元",
+                valueColor = Danger,
+                desc = if (todayExp > 0) "已记 ${state.ledgerCount} 笔" else "还没记账"
+            )
+            MetricLine(
+                label = "今日返利",
+                value = "${money2(todayReb)} 元",
+                valueColor = Gold,
+                desc = if (todayExp > 0) "相当于省了 ${if (todayExp > 0) (todayReb / todayExp * 100).toInt() else 0}%" else "吃饭记得领返利"
+            )
+            MetricLine(
+                label = "本月预算剩余",
+                value = "${money0(left)} 元",
+                valueColor = if (left < 0) Danger else Sage,
+                desc = "预算 ${money0(state.budget)}" + if (state.netRebate) " · 已抵返利" else ""
+            )
+            MetricLine(
+                label = "最长连续打卡",
+                value = "${state.maxStreak} 天",
+                valueColor = Clay,
+                desc = "${state.habitTotal} 个习惯在跟"
+            )
+            MetricLine(
+                label = "最近体重",
+                value = state.lastWeight?.let { "$it kg" } ?: "—",
+                valueColor = Ink,
+                desc = state.lastWeightDate.let { if (it.isNotBlank()) "$it 记录" else "还没有数据" }
+            )
+        }
+    }
+}
+
+@Composable
+private fun MetricLine(
+    label: String,
+    value: String,
+    valueColor: Color,
+    desc: String
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyMedium, color = InkSoft)
+        Column(horizontalAlignment = Alignment.End) {
+            Text(value, style = MaterialTheme.typography.bodyLarge, color = valueColor, fontWeight = FontWeight.SemiBold)
+            Text(desc, style = MaterialTheme.typography.labelSmall, color = InkSoft)
+        }
+    }
+}
+
+@Composable
+private fun AmountStepper(
+    value: String,
+    modifier: Modifier = Modifier,
+    accentColor: Color = Clay,
+    onValueChange: (String) -> Unit
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Surface(
+            modifier = Modifier
+                .size(width = 46.dp, height = 48.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .pressScale(scale = 0.92f) {
+                    val cur = value.toDoubleOrNull()?.toInt() ?: 0
+                    onValueChange(maxOf(0, cur - 1).toString())
+                },
+            color = Color.Transparent,
+            border = androidx.compose.foundation.BorderStroke(1.5.dp, Line)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Text("−", style = MaterialTheme.typography.headlineMedium, color = accentColor)
+            }
+        }
+        OutlinedTextField(
+            value = value,
+            onValueChange = { onValueChange(it.filter { c -> c.isDigit() }) },
+            modifier = Modifier.weight(1f),
+            textStyle = MaterialTheme.typography.headlineMedium.copy(textAlign = TextAlign.Center),
+            prefix = { Text("¥", color = InkSoft) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = accentColor,
+                unfocusedBorderColor = Line
+            )
+        )
+        Surface(
+            modifier = Modifier
+                .size(width = 46.dp, height = 48.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .pressScale(scale = 0.92f) {
+                    val cur = value.toDoubleOrNull()?.toInt() ?: 0
+                    onValueChange((cur + 1).toString())
+                },
+            color = Color.Transparent,
+            border = androidx.compose.foundation.BorderStroke(1.5.dp, Line)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Text("+", style = MaterialTheme.typography.headlineMedium, color = accentColor)
+            }
+        }
+    }
+}
+
+@Composable
+private fun FlowRow(
+    modifier: Modifier = Modifier,
+    horizontalArrangement: Arrangement.Horizontal = Arrangement.Start,
+    verticalArrangement: Arrangement.Vertical = Arrangement.Top,
+    content: @Composable () -> Unit
+) {
+    Layout(
+        content = content,
+        modifier = modifier
+    ) { measurables, constraints ->
+        val hGapPx = 8.dp.roundToPx()
+        val vGapPx = 8.dp.roundToPx()
+        val rows = mutableListOf<List<androidx.compose.ui.layout.Placeable>>()
+        val rowWidths = mutableListOf<Int>()
+        val rowHeights = mutableListOf<Int>()
+
+        var currentRow = mutableListOf<androidx.compose.ui.layout.Placeable>()
+        var currentWidth = 0
+        var currentHeight = 0
+
+        measurables.forEach { measurable ->
+            val placeable = measurable.measure(constraints.copy(minWidth = 0))
+            if (currentRow.isNotEmpty() && currentWidth + hGapPx + placeable.width > constraints.maxWidth) {
+                rows.add(currentRow)
+                rowWidths.add(currentWidth)
+                rowHeights.add(currentHeight)
+                currentRow = mutableListOf()
+                currentWidth = 0
+                currentHeight = 0
+            }
+            currentRow.add(placeable)
+            currentWidth += if (currentRow.size > 1) hGapPx + placeable.width else placeable.width
+            currentHeight = maxOf(currentHeight, placeable.height)
+        }
+        if (currentRow.isNotEmpty()) {
+            rows.add(currentRow)
+            rowWidths.add(currentWidth)
+            rowHeights.add(currentHeight)
+        }
+
+        val totalHeight = rowHeights.sum() + maxOf(0, (rows.size - 1) * vGapPx)
+        layout(constraints.maxWidth, totalHeight) {
+            var y = 0
+            rows.forEachIndexed { i, row ->
+                val rowWidth = rowWidths[i]
+                var x = when (horizontalArrangement) {
+                    Arrangement.End -> constraints.maxWidth - rowWidth
+                    Arrangement.Center -> (constraints.maxWidth - rowWidth) / 2
+                    else -> 0
+                }
+                row.forEachIndexed { j, placeable ->
+                    if (j > 0) x += hGapPx
+                    placeable.placeRelative(x, y + (rowHeights[i] - placeable.height) / 2)
+                    x += placeable.width
+                }
+                y += rowHeights[i] + vGapPx
+            }
+        }
     }
 }

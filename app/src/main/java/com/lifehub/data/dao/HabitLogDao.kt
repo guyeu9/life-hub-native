@@ -17,6 +17,9 @@ interface HabitLogDao {
     @Query("SELECT * FROM habit_logs WHERE dateKey BETWEEN :startKey AND :endKey ORDER BY dateKey DESC")
     fun getRange(startKey: String, endKey: String): Flow<List<HabitLogEntity>>
 
+    @Query("SELECT * FROM habit_logs ORDER BY dateKey DESC")
+    fun getAll(): Flow<List<HabitLogEntity>>
+
     @Query("SELECT * FROM habit_logs WHERE habitId = :habitId AND dateKey = :dateKey LIMIT 1")
     suspend fun find(habitId: Long, dateKey: String): HabitLogEntity?
 

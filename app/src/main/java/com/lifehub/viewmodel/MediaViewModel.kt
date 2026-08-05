@@ -122,6 +122,10 @@ class MediaViewModel(app: LifeHubApplication) : AndroidViewModel(app) {
     fun setFinishDate(item: MediaItemEntity, date: String) = update(item.copy(finishDate = date))
     fun setReview(item: MediaItemEntity, review: String) = update(item.copy(review = review))
 
+    fun setCover(item: MediaItemEntity, cover: String) = update(item.copy(cover = cover))
+
+    fun clearCover(item: MediaItemEntity) = update(item.copy(cover = ""))
+
     fun delete(item: MediaItemEntity) {
         viewModelScope.launch { container.media.delete(item) }
     }

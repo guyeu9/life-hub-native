@@ -1,5 +1,12 @@
 package com.lifehub.ui.media
 
+import android.content.Context
+import android.graphics.BitmapFactory
+import android.net.Uri
+import android.util.Base64
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,6 +21,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -36,11 +46,15 @@ import com.lifehub.ui.components.pressScale
 import com.lifehub.ui.components.toggleClick
 import com.lifehub.ui.theme.*
 import com.lifehub.util.cnDateKey
+import com.lifehub.util.todayKey
 import com.lifehub.util.vibrateLight
 import com.lifehub.util.vibrateMedium
 import com.lifehub.util.vibrateSuccess
 import com.lifehub.util.vibrateTick
 import com.lifehub.viewmodel.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
 
 @Composable
 fun MediaScreen() {
@@ -56,6 +70,7 @@ fun MediaScreen() {
     var showAdd by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<MediaItemEntity?>(null) }
     var confettiKey by remember { mutableIntStateOf(0) }
+    val scope = rememberCoroutineScope()
 
     Box(Modifier.fillMaxSize()) {
         LazyColumn(
@@ -180,24 +195,52 @@ fun MediaScreen() {
         MediaEditDialog(
             item = item,
             onDismiss = { editing = null },
-            onStatus = {
-                if (it == "done" && item.status != "done") {
+            onStatus = { status ->
+                if (status == "done" && item.status != "done") {
                     context.vibrateSuccess()
                     confettiKey++
                 }
-                vm.setStatus(item, it)
-                editing = item.copy(status = it)
+                vm.setStatus(item, status)
+                editing = item.copy(
+                    status = status,
+                    finishDate = when {
+                        status == "done" && item.finishDate.isBlank() -> todayKey()
+                        status != "done" -> ""
+                        else -> item.finishDate
+                    }
+                )
             },
-            onRating = {
-                if (it > 0f && item.rating == 0f) {
+            onRating = { rating ->
+                if (rating > 0f && item.rating == 0f) {
                     context.vibrateSuccess()
                     confettiKey++
                 }
-                vm.setRating(item, it)
-                editing = item.copy(rating = it)
+                vm.setRating(item, rating)
+                editing = if (rating > 0f && item.status != "done") {
+                    item.copy(
+                        rating = rating,
+                        status = "done",
+                        finishDate = if (item.finishDate.isBlank()) todayKey() else item.finishDate
+                    )
+                } else {
+                    item.copy(rating = rating)
+                }
             },
             onDate = { vm.setFinishDate(item, it); editing = item.copy(finishDate = it) },
             onReview = { vm.setReview(item, it); editing = item.copy(review = it) },
+            onCover = { uri ->
+                scope.launch {
+                    val path = saveCoverImage(context, uri, item.id)
+                    if (!path.isNullOrBlank() && editing?.id == item.id) {
+                        vm.setCover(item, path)
+                        editing = item.copy(cover = path)
+                    }
+                }
+            },
+            onClearCover = {
+                vm.clearCover(item)
+                editing = item.copy(cover = "")
+            },
             onDelete = {
                 context.vibrateSuccess()
                 vm.delete(item)
@@ -311,15 +354,27 @@ private fun CoverCard(item: MediaItemEntity, onOpen: (MediaItemEntity) -> Unit) 
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(3f / 4.2f)
-                .clip(RoundedCornerShape(8.dp))
-                .background(Brush.linearGradient(listOf(color, color.copy(alpha = 0.73f)))),
+                .clip(RoundedCornerShape(8.dp)),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                item.title.take(1),
-                color = PaperCard,
-                fontSize = 28.sp,
-                fontWeight = FontWeight.SemiBold
+            CoverImage(
+                cover = item.cover,
+                modifier = Modifier.fillMaxSize(),
+                fallback = {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Brush.linearGradient(listOf(color, color.copy(alpha = 0.73f)))),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            item.title.take(1),
+                            color = PaperCard,
+                            fontSize = 28.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
             )
         }
         Spacer(Modifier.height(4.dp))
@@ -486,11 +541,18 @@ private fun MediaEditDialog(
     onRating: (Float) -> Unit,
     onDate: (String) -> Unit,
     onReview: (String) -> Unit,
+    onCover: (String) -> Unit,
+    onClearCover: () -> Unit,
     onDelete: () -> Unit
 ) {
     var review by remember(item.id) { mutableStateOf(item.review) }
     var date by remember(item.id) { mutableStateOf(item.finishDate) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    val color = parseColor(item.color, Clay)
+
+    val coverPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let { onCover(it.toString()) }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -500,7 +562,54 @@ private fun MediaEditDialog(
         },
         title = { Text(item.title, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                // 封面
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .width(96.dp)
+                            .aspectRatio(3f / 4.2f)
+                            .clip(RoundedCornerShape(8.dp))
+                    ) {
+                        CoverImage(
+                            cover = item.cover,
+                            modifier = Modifier.fillMaxSize(),
+                            fallback = {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(Brush.linearGradient(listOf(color, color.copy(alpha = 0.73f)))),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        item.title.take(1),
+                                        color = PaperCard,
+                                        fontSize = 28.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
+                        )
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        OutlinedButton(
+                            onClick = { coverPicker.launch("image/*") },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(if (item.cover.isNotBlank()) "换封面" else "上传封面", style = MaterialTheme.typography.labelSmall)
+                        }
+                        if (item.cover.isNotBlank()) {
+                            OutlinedButton(
+                                onClick = onClearCover,
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Danger)
+                            ) {
+                                Text("移除封面", style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
+                }
+
                 DropdownSelector(
                     label = "状态", selected = item.status,
                     options = listOf("want" to "想看", "doing" to "在看", "done" to "看完"),
@@ -611,6 +720,76 @@ private fun defaultColorFor(type: String): String = when (type) {
     "movie" -> "#5D7561"
     "music" -> "#647D8E"
     else -> "#A2543C"
+}
+
+/** 加载封面：支持 content URI、file 路径、base64 data URL */
+@Composable
+private fun CoverImage(
+    cover: String,
+    modifier: Modifier = Modifier,
+    contentScale: ContentScale = ContentScale.Crop,
+    fallback: @Composable () -> Unit
+) {
+    val context = LocalContext.current
+    val bitmap by produceState<ImageBitmap?>(initialValue = null, cover) {
+        value = loadCoverBitmap(context, cover)
+    }
+    if (bitmap != null) {
+        Image(
+            bitmap = bitmap!!,
+            contentDescription = null,
+            modifier = modifier,
+            contentScale = contentScale
+        )
+    } else {
+        fallback()
+    }
+}
+
+private suspend fun loadCoverBitmap(context: Context, cover: String): ImageBitmap? = withContext(Dispatchers.IO) {
+    if (cover.isBlank()) return@withContext null
+    try {
+        val bmp = when {
+            cover.startsWith("content://") || cover.startsWith("file://") -> {
+                context.contentResolver.openInputStream(Uri.parse(cover))?.use {
+                    BitmapFactory.decodeStream(it)
+                }
+            }
+            cover.startsWith("data:") -> {
+                val base64 = cover.substringAfter(",", cover)
+                val bytes = Base64.decode(base64, Base64.DEFAULT)
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+            }
+            else -> BitmapFactory.decodeFile(cover)
+        }
+        bmp?.asImageBitmap()
+    } catch (_: Exception) {
+        null
+    }
+}
+
+/** 把用户选择的图片压缩到 240px 宽后存到应用私有目录，返回本地路径 */
+private suspend fun saveCoverImage(context: Context, uriString: String, id: Long): String? = withContext(Dispatchers.IO) {
+    try {
+        val uri = Uri.parse(uriString)
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            var bmp = BitmapFactory.decodeStream(input) ?: return@withContext null
+            val maxWidth = 240
+            if (bmp.width > maxWidth) {
+                val ratio = maxWidth.toFloat() / bmp.width
+                val h = (bmp.height * ratio).toInt()
+                bmp = Bitmap.createScaledBitmap(bmp, maxWidth, h, true)
+            }
+            val dir = File(context.filesDir, "covers").apply { mkdirs() }
+            val file = File(dir, "$id.jpg")
+            file.outputStream().use { out ->
+                bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, out)
+            }
+            file.absolutePath
+        }
+    } catch (_: Exception) {
+        null
+    }
 }
 
 private fun parseColor(hex: String, fallback: Color): Color {

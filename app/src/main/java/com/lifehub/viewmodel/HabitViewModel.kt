@@ -50,12 +50,17 @@ class HabitViewModel(app: LifeHubApplication) : AndroidViewModel(app) {
     private fun computeStreak(doneSet: Set<String>): Int {
         var streak = 0
         val cal = Calendar.getInstance()
-        while (true) {
+        // 今天没打卡不算断，从昨天继续数（对齐 HTML 版 habitStreak）
+        for (i in 0 until 400) {
             val key = dateKey(cal.timeInMillis)
             if (doneSet.contains(key)) {
                 streak++
-                cal.add(Calendar.DAY_OF_YEAR, -1)
-            } else break
+            } else if (i > 0) {
+                break
+            } else {
+                // 今天未打卡，跳过，继续检查昨天
+            }
+            cal.add(Calendar.DAY_OF_YEAR, -1)
         }
         return streak
     }
@@ -104,7 +109,7 @@ class HabitViewModel(app: LifeHubApplication) : AndroidViewModel(app) {
                 HabitEntity(
                     name = name,
                     type = type,
-                    target = if (target < 1) 1 else target,
+                    target = if (type == "check") 1 else if (target < 1) 1 else target,
                     unit = unit,
                     color = color
                 )

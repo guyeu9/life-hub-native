@@ -165,7 +165,8 @@ fun SuccessButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    containerColor: Color = Clay
 ) {
     val ctx = LocalContext.current
     Button(
@@ -175,7 +176,7 @@ fun SuccessButton(
         },
         modifier = modifier,
         enabled = enabled,
-        colors = ButtonDefaults.buttonColors(containerColor = Clay)
+        colors = ButtonDefaults.buttonColors(containerColor = containerColor)
     ) {
         Text(text, color = PaperCard)
     }

@@ -14,6 +14,11 @@ private val sdfCnDate = SimpleDateFormat("M月d日", Locale.CHINA)
 
 fun dateKey(ts: Long): String = sdfDateKey.format(Date(ts))
 fun todayKey(): String = dateKey(System.currentTimeMillis())
+fun dayOffsetKey(offset: Int): String {
+    val cal = Calendar.getInstance()
+    cal.add(Calendar.DAY_OF_YEAR, offset)
+    return dateKey(cal.timeInMillis)
+}
 fun monthDay(ts: Long): String = sdfMonthDay.format(Date(ts))
 fun fullTime(ts: Long): String = sdfFull.format(Date(ts))
 fun cnDate(ts: Long): String = sdfCnDate.format(Date(ts))

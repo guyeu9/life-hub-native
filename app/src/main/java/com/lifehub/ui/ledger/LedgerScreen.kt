@@ -16,10 +16,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lifehub.LifeHubApplication
 import com.lifehub.charts.DonutChart
+import com.lifehub.charts.GroupedBarChart
+import com.lifehub.charts.LineChart
 import com.lifehub.charts.RingProgress
 import com.lifehub.data.SettingsRepository
 import com.lifehub.data.entity.LedgerEntity
@@ -33,6 +36,8 @@ import com.lifehub.viewmodel.LedgerFilter
 import com.lifehub.viewmodel.LedgerSummary
 import com.lifehub.viewmodel.LedgerViewModel
 import com.lifehub.viewmodel.LedgerViewModelFactory
+import com.lifehub.viewmodel.MonthlyTrend
+import com.lifehub.viewmodel.RebateOverview
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -47,6 +52,8 @@ fun LedgerScreen() {
     val filtered by vm.filtered.collectAsState()
     val filter by vm.filter.collectAsState()
     val summary by vm.summary.collectAsState()
+    val trend by vm.monthlyTrend.collectAsState()
+    val rebate by vm.rebateOverview.collectAsState()
     val fields by app.container.settings.fields.collectAsState(initial = SettingsRepository.FieldTable())
     val scope = rememberCoroutineScope()
 
@@ -93,6 +100,7 @@ fun LedgerScreen() {
             item {
                 FilterBar(
                     all = all,
+                    fields = fields,
                     filter = filter,
                     onFilterChange = { vm.setFilter(it) }
                 )
@@ -100,6 +108,8 @@ fun LedgerScreen() {
             if (summary.byCategory.isNotEmpty()) {
                 item { CategoryDonut(summary.byCategory) }
             }
+            item { RebateOverviewCard(rebate, fields) }
+            item { MonthlyComparisonCard(trend) }
             item { Text("明细", style = MaterialTheme.typography.titleMedium, color = Ink) }
             itemsIndexed(filtered) { index, item ->
                 LedgerRow(
@@ -131,41 +141,88 @@ fun LedgerScreen() {
 
 @Composable
 private fun SummaryCard(s: LedgerSummary, onEditBudget: () -> Unit) {
+    val used = if (s.netRebate) s.expense - s.rebate else s.expense
+    val rate = if (s.budget > 0) (used / s.budget).toFloat().coerceIn(0f, 1.6f) else 0f
+    val over = used - s.budget
     LifeCard {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            RingProgress(
-                progress = if (s.budget > 0) (s.net / s.budget).toFloat().coerceIn(0f, 1f) else 0f,
-                color = if (s.net > s.budget) Danger else Success,
-                trackColor = Line,
-                modifier = Modifier.size(84.dp),
-                centerLabel = {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "${s.month} 收支概况",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = Ink
+                )
+                Text(
+                    "调整预算",
+                    modifier = Modifier.hapticClick { onEditBudget() },
+                    color = Clay,
+                    style = MaterialTheme.typography.labelSmall
+                )
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                RingProgress(
+                    progress = if (s.budget > 0) (used / s.budget).toFloat().coerceIn(0f, 1f) else 0f,
+                    color = if (over > 0) Danger else Success,
+                    trackColor = Line,
+                    modifier = Modifier.size(84.dp),
+                    centerLabel = {
+                        Text(
+                            "${(rate * 100).toInt()}%",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = Ink
+                        )
+                    }
+                )
+                Spacer(Modifier.width(16.dp))
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    SummaryLine("支出", "-${money2(s.expense)} · ${s.expenseCount} 笔", Clay)
+                    SummaryLine("收入", "+${money2(s.income)} · ${s.incomeCount} 笔", Sage)
+                    SummaryLine("返利", "+${money2(s.rebate)} · ${s.rebateCount} 笔", Amber)
+                    SummaryLine("实际结余", money2(s.net), if (s.net >= 0) Sage else Danger)
+                }
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
                     Text(
-                        "${(if (s.budget > 0) (s.net / s.budget * 100).toInt() else 0)}%",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = Ink
+                        "已用 ${money0(used)} / ${money0(s.budget)} 元",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = InkSoft
+                    )
+                    Text(
+                        if (over > 0) "超支 ${money0(over)} 元" else "还剩 ${money0(-over)} 元",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (over > 0) Danger else Sage
                     )
                 }
-            )
-            Spacer(Modifier.width(16.dp))
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Line("收入", "+${money2(s.income)}", Sage)
-                Line("支出", "-${money2(s.expense)}", Clay)
-                Line("返利", "+${money2(s.rebate)}", Amber)
-                Line("净支出", money2(s.net), if (s.net > s.budget) Danger else Ink)
-                Line("月预算", money2(s.budget), InkSoft)
+                LinearProgressIndicator(
+                    progress = { rate.coerceIn(0f, 1f) },
+                    modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                    color = when {
+                        rate > 1f -> Danger
+                        rate > 0.85f -> Amber
+                        else -> Success
+                    },
+                    trackColor = Line
+                )
+                Text(
+                    if (s.netRebate)
+                        "口径：支出 ${money0(s.expense)} − 返利 ${money0(s.rebate)} = ${money0(used)} 元"
+                    else
+                        "口径：只看支出，返利不冲抵（可在预算设置里切换）",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = InkSoft
+                )
             }
-            Text(
-                "调整预算",
-                modifier = Modifier.hapticClick { onEditBudget() },
-                color = Clay,
-                style = MaterialTheme.typography.labelSmall
-            )
         }
     }
 }
 
 @Composable
-private fun Line(label: String, value: String, color: Color) {
+private fun SummaryLine(label: String, value: String, color: Color) {
     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
         Text(label, style = MaterialTheme.typography.labelMedium, color = InkSoft)
         Text(value, style = MaterialTheme.typography.labelMedium, color = color)
@@ -205,6 +262,145 @@ private fun CategoryDonut(byCategory: List<Pair<String, Double>>) {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun RebateOverviewCard(o: RebateOverview, fields: SettingsRepository.FieldTable) {
+    LifeCard {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("返利概览", style = MaterialTheme.typography.titleMedium, color = Ink)
+            if (o.total <= 0) {
+                EmptyState("${o.month} 还没记返利。点「记一笔」选返利，把外卖红包、团购优惠、信用卡返现都记下来。")
+            } else {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    MiniMetric("返利总额", money0(o.total), "${o.rebateCount} 笔", Amber)
+                    MiniMetric("覆盖消费", money0(o.base), if (o.base > 0) "已填对应消费" else "录入时填对应消费", Ink)
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    MiniMetric(
+                        "综合返利率",
+                        if (o.base > 0) "%.1f".format(o.rate) else "—",
+                        if (o.base > 0) "%" else "数据不足",
+                        Gold
+                    )
+                    MiniMetric(
+                        "相当于餐饮打",
+                        if (o.discount != null) "%.1f".format(o.discount) else "—",
+                        if (o.discount != null) "折" else "本月没有餐饮支出",
+                        Sage
+                    )
+                }
+                if (o.byCategory.isNotEmpty()) {
+                    Text("按来源拆分", style = MaterialTheme.typography.labelSmall, color = InkSoft)
+                    val total = o.byCategory.sumOf { it.second }.coerceAtLeast(0.0001)
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        o.byCategory.forEach { (cat, amt) ->
+                            val pct = (amt / total * 100).toInt()
+                            val color = categoryColor(fields, "rebate", cat)
+                            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(Modifier.size(10.dp).clip(RoundedCornerShape(2.dp)).background(color))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(cat, style = MaterialTheme.typography.labelSmall, color = InkSoft)
+                                }
+                                Text("${money0(amt)} · ${pct}%", style = MaterialTheme.typography.labelSmall, color = Ink)
+                            }
+                        }
+                    }
+                }
+                if (o.bestAmount > 0) {
+                    Text(
+                        "单笔最高：${o.bestNote} 返 ${money2(o.bestAmount)} 元",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = InkSoft
+                    )
+                }
+                if (o.trend.isNotEmpty()) {
+                    Text("近 6 个月返利趋势", style = MaterialTheme.typography.labelSmall, color = InkSoft)
+                    LineChart(
+                        points = o.trend.map { it.second.toFloat() },
+                        color = Gold,
+                        lineColor = Gold,
+                        showAvg = false,
+                        modifier = Modifier.fillMaxWidth().height(120.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RowScope.MiniMetric(label: String, value: String, desc: String, color: Color) {
+    Surface(
+        modifier = Modifier.weight(1f),
+        shape = RoundedCornerShape(8.dp),
+        color = PaperCard,
+        border = androidx.compose.foundation.BorderStroke(1.dp, Line)
+    ) {
+        Column(Modifier.padding(12.dp)) {
+            Text(label, style = MaterialTheme.typography.labelSmall, color = InkSoft)
+            Spacer(Modifier.height(4.dp))
+            Text(value, style = MaterialTheme.typography.titleMedium, color = color)
+            Text(desc, style = MaterialTheme.typography.labelSmall, color = InkSoft)
+        }
+    }
+}
+
+@Composable
+private fun MonthlyComparisonCard(trend: MonthlyTrend) {
+    LifeCard {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("月度对比", style = MaterialTheme.typography.titleMedium, color = Ink)
+            if (trend.labels.isEmpty()) {
+                EmptyState("数据不足")
+            } else {
+                val groups = trend.labels.indices.map { i ->
+                    listOf(
+                        trend.expense.getOrElse(i) { 0.0 }.toFloat(),
+                        trend.income.getOrElse(i) { 0.0 }.toFloat(),
+                        trend.rebate.getOrElse(i) { 0.0 }.toFloat()
+                    )
+                }
+                GroupedBarChart(
+                    groupValues = groups,
+                    colors = listOf(Clay, Sage, Gold),
+                    modifier = Modifier.fillMaxWidth().height(160.dp)
+                )
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    LegendDot("支出", Clay)
+                    LegendDot("收入", Sage)
+                    LegendDot("返利", Gold)
+                }
+                Divider(color = Line, thickness = 1.dp)
+                Row(Modifier.fillMaxWidth()) {
+                    trend.labels.forEachIndexed { i, label ->
+                        val net = trend.net.getOrElse(i) { 0.0 }
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(label, style = MaterialTheme.typography.labelSmall, color = InkSoft)
+                            Text(
+                                money0(net),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = if (net >= 0) Sage else Danger
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LegendDot(label: String, color: Color) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(8.dp).clip(RoundedCornerShape(2.dp)).background(color))
+        Spacer(Modifier.width(4.dp))
+        Text(label, style = MaterialTheme.typography.labelSmall, color = InkSoft)
     }
 }
 
@@ -387,14 +583,21 @@ private fun BudgetEditDialog(
 @Composable
 private fun FilterBar(
     all: List<LedgerEntity>,
+    fields: SettingsRepository.FieldTable,
     filter: LedgerFilter,
     onFilterChange: (LedgerFilter) -> Unit
 ) {
     val months = remember(all) {
         all.map { monthKeyOf(it.date) }.distinct().sortedDescending()
     }
-    val categories = remember(all) {
-        all.map { it.category }.distinct().sorted()
+    val predefinedCats = remember(fields) {
+        (fields.expenseCats + fields.incomeCats + fields.rebateCats).map { it.name }
+    }
+    val recordedCats = remember(all) {
+        all.map { it.category }
+    }
+    val categories = remember(predefinedCats, recordedCats) {
+        (predefinedCats + recordedCats).distinct().sorted()
     }
     val typeOptions = listOf(
         "" to "全部类型",
@@ -489,13 +692,16 @@ private fun FilterDropdown(
     }
 }
 
-private fun categoryColor(fields: SettingsRepository.FieldTable, item: LedgerEntity): Color {
-    val list = when (item.type) {
+private fun categoryColor(fields: SettingsRepository.FieldTable, item: LedgerEntity): Color =
+    categoryColor(fields, item.type, item.category)
+
+private fun categoryColor(fields: SettingsRepository.FieldTable, type: String, name: String): Color {
+    val list = when (type) {
         "income" -> fields.incomeCats
         "rebate" -> fields.rebateCats
         else -> fields.expenseCats
     }
-    return list.firstOrNull { it.name == item.category }?.let {
+    return list.firstOrNull { it.name == name }?.let {
         Color(AndroidColor.parseColor(it.color))
     } ?: Clay
 }

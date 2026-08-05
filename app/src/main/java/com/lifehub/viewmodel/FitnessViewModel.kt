@@ -74,6 +74,16 @@ class FitnessViewModel(app: LifeHubApplication) : AndroidViewModel(app) {
                     date = System.currentTimeMillis()
                 )
             )
+            // 起点体重未设置时，自动取最早一条记录（对齐 HTML 版 add-fit）
+            val profile = container.settings.fitnessProfile.first()
+            if (profile.startWeight <= 0) {
+                val first = container.fitness.getAllOnce()
+                    .filter { it.weight > 0 }
+                    .minByOrNull { it.dateKey }
+                if (first != null) {
+                    container.settings.setFitnessProfile(profile.copy(startWeight = first.weight))
+                }
+            }
         }
     }
 

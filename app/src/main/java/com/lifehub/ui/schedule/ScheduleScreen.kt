@@ -14,11 +14,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lifehub.LifeHubApplication
@@ -346,7 +348,7 @@ private fun ScheduleRowCard(
         else -> InkSoft
     }
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().alpha(if (item.done) 0.7f else 1f),
         shape = RoundedCornerShape(8.dp),
         color = PaperCard
     ) {
@@ -364,8 +366,9 @@ private fun ScheduleRowCard(
                 Text(
                     item.title,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = if (row.overdue) Danger else Ink,
-                    fontWeight = if (row.overdue) FontWeight.SemiBold else FontWeight.Normal
+                    color = if (item.done) InkSoft else if (row.overdue) Danger else Ink,
+                    fontWeight = if (row.overdue) FontWeight.SemiBold else FontWeight.Normal,
+                    textDecoration = if (item.done) TextDecoration.LineThrough else TextDecoration.None
                 )
                 Row(Modifier.padding(top = 2.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Surface(

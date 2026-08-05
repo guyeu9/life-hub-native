@@ -106,7 +106,7 @@ fun DonutChart(
 }
 
 /**
- * 折线图 + 可选 7 日均线
+ * 折线图 + 可选 7 日均线 + 目标线
  * points: 原始数据（已按 X 顺序，升序）
  */
 @Composable
@@ -116,15 +116,28 @@ fun LineChart(
     color: Color = Sage,
     lineColor: Color = Clay,
     avgColor: Color = Amber,
-    showAvg: Boolean = true
+    showAvg: Boolean = true,
+    goal: Float? = null,
+    goalColor: Color = Clay
 ) {
     Canvas(modifier = modifier) {
         if (points.isEmpty()) return@Canvas
         val w = size.width
         val h = size.height
         val pad = 16f
-        val maxV = points.maxOf { it }.coerceAtLeast(0.0001f)
-        val minV = points.minOf { it }.coerceAtMost(maxV)
+
+        // 7 日均线：满 7 天才计算（对齐 HTML 版 movingAvg）
+        val ma = points.mapIndexed { i, _ ->
+            if (i >= 6) points.subList(i - 6, i + 1).average().toFloat() else null
+        }
+
+        val allVals = buildList {
+            addAll(points)
+            ma.filterNotNull().forEach { add(it) }
+            goal?.let { add(it) }
+        }
+        val maxV = allVals.maxOf { it }.coerceAtLeast(0.0001f)
+        val minV = allVals.minOf { it }.coerceAtMost(maxV)
         val range = (maxV - minV).coerceAtLeast(0.0001f)
         val stepX = if (points.size > 1) (w - 2 * pad) / (points.size - 1) else 0f
 
@@ -135,21 +148,40 @@ fun LineChart(
             )
         }
 
-        // 7日均线
-        if (showAvg && points.size >= 2) {
-            val avgPath = Path()
-            points.forEachIndexed { i, _ ->
-                val startIdx = maxOf(0, i - 6)
-                val window = points.subList(startIdx, i + 1)
-                val avg = window.average().toFloat()
-                val pt = toXY(i, avg)
-                if (i == 0) avgPath.moveTo(pt.x, pt.y) else avgPath.lineTo(pt.x, pt.y)
-            }
-            drawPath(
-                path = avgPath,
-                color = avgColor.copy(alpha = 0.6f),
-                style = Stroke(width = 1.5f, cap = StrokeCap.Round)
+        // 目标线
+        goal?.let { g ->
+            val y = toXY(0, g).y
+            drawLine(
+                color = goalColor,
+                start = Offset(pad, y),
+                end = Offset(w - pad, y),
+                strokeWidth = 1.5f,
+                pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(8f, 6f), 0f)
             )
+        }
+
+        // 7日均线
+        if (showAvg) {
+            val avgPath = Path()
+            var started = false
+            points.forEachIndexed { i, _ ->
+                ma[i]?.let { avg ->
+                    val pt = toXY(i, avg)
+                    if (!started) {
+                        avgPath.moveTo(pt.x, pt.y)
+                        started = true
+                    } else {
+                        avgPath.lineTo(pt.x, pt.y)
+                    }
+                }
+            }
+            if (started) {
+                drawPath(
+                    path = avgPath,
+                    color = avgColor,
+                    style = Stroke(width = 2.5f, cap = StrokeCap.Round)
+                )
+            }
         }
 
         // 主折线
@@ -161,7 +193,7 @@ fun LineChart(
         drawPath(
             path = path,
             color = lineColor,
-            style = Stroke(width = 2.5f, cap = StrokeCap.Round)
+            style = Stroke(width = 2f, cap = StrokeCap.Round)
         )
 
         // 数据点
@@ -206,6 +238,47 @@ fun MonthBarChart(
                 size = Size(bw, bh.coerceAtLeast(2f)),
                 cornerRadius = androidx.compose.ui.geometry.CornerRadius(3f, 3f)
             )
+        }
+    }
+}
+
+/**
+ * 分组柱图（月度对比：支出 / 收入 / 返利）
+ * groupValues: 每组包含多个 series 的值
+ */
+@Composable
+fun GroupedBarChart(
+    modifier: Modifier = Modifier.fillMaxWidth().height(140.dp),
+    groupValues: List<List<Float>>,
+    colors: List<Color> = listOf(Clay, Sage, Amber),
+    trackColor: Color = Line
+) {
+    Canvas(modifier = modifier) {
+        if (groupValues.isEmpty()) return@Canvas
+        val seriesCount = groupValues.first().size.coerceAtLeast(1)
+        val groupCount = groupValues.size
+        val pad = 8f
+        val groupGap = 16f
+        val barGap = 4f
+        val available = (size.width - 2 * pad - (groupCount - 1) * groupGap).coerceAtLeast(1f)
+        val groupW = available / groupCount
+        val barW = (groupW - (seriesCount - 1) * barGap) / seriesCount
+        val maxV = groupValues.flatten().maxOf { it }.coerceAtLeast(0.0001f)
+        val chartH = size.height - 20f
+
+        groupValues.forEachIndexed { gi, vals ->
+            val groupX = pad + gi * (groupW + groupGap)
+            vals.forEachIndexed { si, v ->
+                val x = groupX + si * (barW + barGap)
+                val bh = (v / maxV) * chartH
+                val y = chartH - bh
+                drawRoundRect(
+                    color = colors.getOrElse(si) { Clay },
+                    topLeft = Offset(x, y),
+                    size = Size(barW.coerceAtLeast(2f), bh.coerceAtLeast(0f)),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(3f, 3f)
+                )
+            }
         }
     }
 }

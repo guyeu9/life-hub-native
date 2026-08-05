@@ -32,11 +32,13 @@ sealed class Destination(
     object Schedule : Destination("schedule", "日程", Icons.Filled.EventNote)
     object Wishlist : Destination("wishlist", "待买", Icons.Filled.ShoppingCart)
     object Media : Destination("media", "书影音", Icons.Filled.MenuBook)
+    object Settings : Destination("settings", "设置", Icons.Filled.Settings)
 }
 
 val ALL_DESTINATIONS = listOf(
     Destination.Home, Destination.Ledger, Destination.Habit,
-    Destination.Fitness, Destination.Schedule, Destination.Wishlist, Destination.Media
+    Destination.Fitness, Destination.Schedule, Destination.Wishlist, Destination.Media,
+    Destination.Settings
 )
 
 @Composable

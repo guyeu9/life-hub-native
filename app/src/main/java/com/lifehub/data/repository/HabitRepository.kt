@@ -15,6 +15,7 @@ class HabitRepository(
     fun getLogsByHabit(habitId: Long): Flow<List<HabitLogEntity>> = logDao.getByHabit(habitId)
     fun getLogRange(startKey: String, endKey: String): Flow<List<HabitLogEntity>> =
         logDao.getRange(startKey, endKey)
+    fun getAllLogs(): Flow<List<HabitLogEntity>> = logDao.getAll()
 
     suspend fun findLog(habitId: Long, dateKey: String) = logDao.find(habitId, dateKey)
 

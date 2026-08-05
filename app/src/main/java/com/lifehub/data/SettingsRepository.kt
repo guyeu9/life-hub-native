@@ -31,30 +31,39 @@ class SettingsRepository(private val context: Context) {
 
     @Serializable
     data class FieldTable(
+        // 对齐 life-hub.html 默认字段
         val expenseCats: List<CategoryDef> = listOf(
             CategoryDef("餐饮", "#A2543C"),
-            CategoryDef("交通", "#647D8E"),
-            CategoryDef("日用", "#5D7561"),
-            CategoryDef("娱乐", "#C8893B")
+            CategoryDef("交通", "#4A6478"),
+            CategoryDef("居家", "#5D7561"),
+            CategoryDef("购物", "#A8842F"),
+            CategoryDef("娱乐", "#8D6B52"),
+            CategoryDef("医疗", "#B0433A"),
+            CategoryDef("学习", "#6B6A94"),
+            CategoryDef("人情", "#C2755A"),
+            CategoryDef("其他", "#918C81")
         ),
         val incomeCats: List<CategoryDef> = listOf(
-            CategoryDef("工资", "#5D7561"),
-            CategoryDef("奖金", "#C8893B"),
-            CategoryDef("其他", "#647D8E")
+            CategoryDef("工资", "#4C7554"),
+            CategoryDef("兼职", "#5D7561"),
+            CategoryDef("理财", "#A8842F"),
+            CategoryDef("红包", "#C2755A"),
+            CategoryDef("其他收入", "#918C81")
         ),
         val rebateCats: List<CategoryDef> = listOf(
-            CategoryDef("购物返利", "#C8893B"),
-            CategoryDef("餐饮返利", "#A2543C")
+            CategoryDef("外卖返利", "#A8842F"),
+            CategoryDef("堂食返利", "#C2955A"),
+            CategoryDef("团购优惠", "#8D6B52"),
+            CategoryDef("信用卡返现", "#6B6A94"),
+            CategoryDef("平台补贴", "#5D7561"),
+            CategoryDef("其他返利", "#918C81")
         ),
-        val priorities: List<CategoryDef> = listOf(
-            CategoryDef("P0", "#A2543C"),
-            CategoryDef("P1", "#C8893B"),
-            CategoryDef("P2", "#5D7561")
-        ),
+        val planTags: List<String> = listOf("生活", "工作", "家人", "健康", "家务", "学习"),
+        val priorities: List<String> = listOf("P0", "P1", "P2"),
         val mediaTypes: List<CategoryDef> = listOf(
-            CategoryDef("书", "#5D7561"),
-            CategoryDef("影", "#647D8E"),
-            CategoryDef("音", "#C8893B")
+            CategoryDef("书", "#A2543C"),
+            CategoryDef("影视", "#4A6478"),
+            CategoryDef("音乐", "#A8842F")
         )
     )
 
@@ -64,6 +73,13 @@ class SettingsRepository(private val context: Context) {
         val startWeight: Double = 0.0, // 起点体重 kg（0 = 取首条记录）
         val targetWeight: Double = 60.0,// 目标体重 kg
         val tdee: Double = 1600.0       // 基础代谢 + 日常消耗 kcal
+    )
+
+    @Serializable
+    data class QuickAmounts(
+        val expense: List<Double> = listOf(10.0, 20.0, 50.0, 100.0),
+        val income: List<Double> = listOf(500.0, 1000.0, 2000.0, 5000.0),
+        val rebate: List<Double> = listOf(1.0, 3.0, 5.0, 10.0)
     )
 
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = true }
@@ -111,11 +127,34 @@ class SettingsRepository(private val context: Context) {
         context.dataStore.edit { it[KEY_FITNESS_PROFILE] = json.encodeToString(FitnessProfile.serializer(), p) }
     }
 
+    // 首页常用金额
+    val quickAmounts: Flow<QuickAmounts> = context.dataStore.data.map { prefs ->
+        prefs[KEY_QUICK_AMOUNTS]?.let {
+            try {
+                json.decodeFromString(QuickAmounts.serializer(), it)
+            } catch (e: Exception) { QuickAmounts() }
+        } ?: QuickAmounts()
+    }
+    suspend fun setQuickAmounts(q: QuickAmounts) {
+        context.dataStore.edit { it[KEY_QUICK_AMOUNTS] = json.encodeToString(QuickAmounts.serializer(), q) }
+    }
+
+    /** 估算应用本地存储占用（KB），与网页版 localStorage 大小提示对齐 */
+    fun approximateStorageSizeKb(): Double {
+        var bytes = 0L
+        val dataDir = context.filesDir.parentFile
+        if (dataDir != null && dataDir.isDirectory) {
+            dataDir.walkTopDown().filter { it.isFile }.forEach { bytes += it.length() }
+        }
+        return if (bytes <= 0) 0.0 else (bytes / 1024.0)
+    }
+
     companion object {
         private val KEY_BUDGET = doublePreferencesKey("monthly_budget")
         private val KEY_NET_REBATE = booleanPreferencesKey("net_rebate")
         private val KEY_FIELDS = stringPreferencesKey("field_table")
         private val KEY_BACKUP_COUNT = intPreferencesKey("backup_count")
         private val KEY_FITNESS_PROFILE = stringPreferencesKey("fitness_profile")
+        private val KEY_QUICK_AMOUNTS = stringPreferencesKey("quick_amounts")
     }
 }

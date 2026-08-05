@@ -18,3 +18,4 @@ val Amber = Color(0xFFC8893B)      // 琥珀（强调）
 val Slate = Color(0xFF647D8E)      // 石板蓝
 val Danger = Color(0xFFB85450)     // 危险/超支
 val Success = Color(0xFF5D7561)    // 达标
+val Gold = Color(0xFFA8842F)       // 返利/金币

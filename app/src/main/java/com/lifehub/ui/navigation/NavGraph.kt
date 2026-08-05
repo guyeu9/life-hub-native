@@ -12,6 +12,7 @@ import com.lifehub.ui.fitness.FitnessScreen
 import com.lifehub.ui.schedule.ScheduleScreen
 import com.lifehub.ui.wishlist.WishlistScreen
 import com.lifehub.ui.media.MediaScreen
+import com.lifehub.ui.settings.SettingsScreen
 
 @Composable
 fun LifeHubNavGraph(
@@ -29,7 +30,8 @@ fun LifeHubNavGraph(
             HomeScreen(
                 onNavigate = { route -> navController.navigate(route) },
                 onExport = onExport,
-                onImport = onImport
+                onImport = onImport,
+                onOpenSettings = { navController.navigate("settings") }
             )
         }
         composable(Destination.Ledger.route) { LedgerScreen() }
@@ -38,5 +40,17 @@ fun LifeHubNavGraph(
         composable(Destination.Schedule.route) { ScheduleScreen() }
         composable(Destination.Wishlist.route) { WishlistScreen() }
         composable(Destination.Media.route) { MediaScreen() }
+        composable(Destination.Settings.route) {
+            SettingsScreen(
+                onExport = onExport,
+                onImport = onImport,
+                onBack = {
+                    navController.popBackStack()
+                    if (navController.currentBackStackEntry == null) {
+                        navController.navigate(Destination.Home.route)
+                    }
+                }
+            )
+        }
     }
 }

@@ -18,21 +18,21 @@ android {
         vectorDrawables { useSupportLibrary true }
     }
 
-    signingConfigs {
-        release {
-            // 密钥库已提交到仓库（app/lifehub.keystore），本地与 CI 均可直接使用
-            storeFile file("lifehub.keystore")
-            storePassword "lifehub123456"
-            keyAlias "lifehub"
-            keyPassword "lifehub123456"
-        }
-    }
-
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.release
+            // CI 里有签名密钥时才配置签名
+            def ksPath = System.getenv("KEYSTORE_PATH")
+            if (ksPath != null) {
+                signingConfig signingConfigs.create("release") {
+                    storeFile file(ksPath)
+                    storePassword System.getenv("KEYSTORE_PASSWORD")
+                    keyAlias System.getenv("KEY_ALIAS")
+                    keyPassword System.getenv("KEY_PASSWORD")
+                }
+                signingConfig signingConfigs.release
+            }
         }
         debug {
             minifyEnabled false

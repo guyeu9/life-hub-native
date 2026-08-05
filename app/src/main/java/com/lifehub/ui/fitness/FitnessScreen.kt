@@ -84,7 +84,13 @@ fun FitnessScreen() {
                     LifeCard {
                         Text("体重曲线", style = MaterialTheme.typography.titleMedium, color = Ink)
                         Spacer(Modifier.height(8.dp))
-                        LineChart(points = state.logs.map { it.weight.toFloat() })
+                        LineChart(
+                            points = state.logs.map { it.weight.toFloat() },
+                            color = Slate,
+                            lineColor = Slate,
+                            avgColor = Clay,
+                            goal = state.profile.targetWeight.takeIf { it > 0 }?.toFloat()
+                        )
                         Spacer(Modifier.height(6.dp))
                         Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(16.dp)) {
                             LegendDot(Slate, "每日实测")
@@ -96,10 +102,10 @@ fun FitnessScreen() {
 
             item {
                 AddLogForm(
-                    onSave = { w, f, i, b ->
+                    onSave = { dateKey, w, f, i, b ->
                         context.vibrateSuccess()
                         confettiKey++
-                        vm.saveLog(todayKey(), w, f, i, b, "")
+                        vm.saveLog(dateKey, w, f, i, b, "")
                     }
                 )
             }
@@ -179,7 +185,15 @@ private fun FitnessMetrics(state: FitnessUiState) {
     val logs = state.logs
     val last = logs.lastOrNull()
     val pts = logs.map { it.weight }.filter { it > 0 }
-    val ma7 = if (pts.size >= 7) pts.takeLast(7).average() else pts.lastOrNull() ?: 0.0
+    val ma = movingAvg(pts, 7)
+    val ma7 = ma.lastOrNull() ?: (pts.lastOrNull() ?: 0.0)
+    val maDesc = if (ma.size >= 2) {
+        val prev = ma[maxOf(0, ma.size - 8)]
+        val diff = ma.last() - prev
+        "较上周 ${if (diff >= 0) "+" else ""}${"%.2f".format(diff)}kg"
+    } else {
+        "数据攒够 7 天才有"
+    }
     val h = state.profile.height / 100.0
     val bmi = if (last != null && last.weight > 0) last.weight / (h * h) else 0.0
     val lv = bmiLevel(bmi)
@@ -190,7 +204,7 @@ private fun FitnessMetrics(state: FitnessUiState) {
 
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         MetricCell("当前体重", last?.weight?.toString() ?: "—", "kg", last?.dateKey?.let { cnDateKey(it) } ?: "待记录", color = Ink)
-        MetricCell("7 日均线", if (ma7 > 0) "%.1f".format(ma7) else "—", "kg", if (pts.size >= 7) "近 7 日平均" else "攒够 7 天才有", color = Clay)
+        MetricCell("7 日均线", if (ma7 > 0) "%.1f".format(ma7) else "—", "kg", maDesc, color = Clay)
     }
     Spacer(Modifier.height(8.dp))
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -266,17 +280,29 @@ private fun GoalProgress(state: FitnessUiState) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AddLogForm(onSave: (weight: Double, fat: Double, intake: Double, burn: Double) -> Unit) {
+private fun AddLogForm(onSave: (dateKey: String, weight: Double, fat: Double, intake: Double, burn: Double) -> Unit) {
+    var dateKey by remember { mutableStateOf(todayKey()) }
     var weight by remember { mutableStateOf("") }
     var fat by remember { mutableStateOf("") }
     var intake by remember { mutableStateOf("") }
     var burn by remember { mutableStateOf("") }
     val ctx = LocalContext.current
+    val datePattern = remember { Regex("^\\d{4}-\\d{2}-\\d{2}$") }
     LifeCard {
         Text("记录今天的身体数据", style = MaterialTheme.typography.titleMedium, color = Ink)
         Spacer(Modifier.height(4.dp))
         Text("同一天重复记录会覆盖", style = MaterialTheme.typography.labelSmall, color = InkSoft)
         Spacer(Modifier.height(12.dp))
+        OutlinedTextField(
+            value = dateKey,
+            onValueChange = { dateKey = it },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("日期 yyyy-MM-dd") },
+            singleLine = true,
+            isError = !dateKey.matches(datePattern),
+            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Clay, unfocusedBorderColor = Line)
+        )
+        Spacer(Modifier.height(8.dp))
         Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp)) {
             NumField("体重 kg", weight, { weight = it }, Modifier.weight(1f))
             NumField("体脂 %", fat, { fat = it }, Modifier.weight(1f))
@@ -291,9 +317,9 @@ private fun AddLogForm(onSave: (weight: Double, fat: Double, intake: Double, bur
             text = "保存",
             onClick = {
                 val w = weight.toDoubleOrNull() ?: 0.0
-                if (w > 0) {
-                    onSave(w, fat.toDoubleOrNull() ?: 0.0, intake.toDoubleOrNull() ?: 0.0, burn.toDoubleOrNull() ?: 0.0)
-                    weight = ""; fat = ""; intake = ""; burn = ""
+                if (w > 0 && dateKey.matches(datePattern)) {
+                    onSave(dateKey, w, fat.toDoubleOrNull() ?: 0.0, intake.toDoubleOrNull() ?: 0.0, burn.toDoubleOrNull() ?: 0.0)
+                    dateKey = todayKey(); weight = ""; fat = ""; intake = ""; burn = ""
                 }
             },
             modifier = Modifier.fillMaxWidth()
@@ -497,6 +523,14 @@ private fun bmiLevel(bmi: Double): Pair<String, Color> = when {
     bmi < 24 -> "正常" to Sage
     bmi < 28 -> "偏胖" to Amber
     else -> "肥胖" to Danger
+}
+
+/** 7 日（窗口）移动平均，对齐 HTML 版 movingAvg */
+private fun movingAvg(pts: List<Double>, win: Int): List<Double> {
+    if (pts.size < win) return emptyList()
+    return (win - 1 until pts.size).map { i ->
+        pts.subList(i - win + 1, i + 1).average()
+    }
 }
 
 private fun <T> List<T>.average(selector: (T) -> Double): Double = this.map(selector).average()

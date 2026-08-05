@@ -36,7 +36,13 @@ private data class BWish(val id: Long, val name: String, val estPrice: Double, v
 @Serializable
 private data class BMedia(val id: Long, val type: String, val title: String, val author: String, val status: String, val rating: Float, val review: String, val cover: String, val color: String, val finishDate: String, val updatedAt: Long)
 @Serializable
-private data class BSettings(val monthlyBudget: Double, val netRebate: Boolean, val fields: String, val fitnessProfile: String)
+private data class BSettings(
+    val monthlyBudget: Double,
+    val netRebate: Boolean,
+    val fields: String,
+    val fitnessProfile: String,
+    val quickAmounts: String
+)
 
 @Serializable
 private data class Backup(
@@ -67,7 +73,8 @@ object JsonBackupUtil {
                     monthlyBudget = container.settings.monthlyBudget.first(),
                     netRebate = container.settings.netRebate.first(),
                     fields = json.encodeToString(SettingsRepository.FieldTable.serializer(), container.settings.fields.first()),
-                    fitnessProfile = json.encodeToString(SettingsRepository.FitnessProfile.serializer(), container.settings.fitnessProfile.first())
+                    fitnessProfile = json.encodeToString(SettingsRepository.FitnessProfile.serializer(), container.settings.fitnessProfile.first()),
+                    quickAmounts = json.encodeToString(SettingsRepository.QuickAmounts.serializer(), container.settings.quickAmounts.first())
                 )
                 val backup = Backup(
                     ledger = container.ledger.getAllOnce().map { BLedger(it.id, it.type, it.category, it.amount, it.note, it.rebateOf, it.date) },
@@ -141,6 +148,12 @@ object JsonBackupUtil {
                         try {
                             val fp = json.decodeFromString(SettingsRepository.FitnessProfile.serializer(), s.fitnessProfile)
                             container.settings.setFitnessProfile(fp)
+                        } catch (_: Exception) { }
+                    }
+                    if (s.quickAmounts.isNotBlank()) {
+                        try {
+                            val qa = json.decodeFromString(SettingsRepository.QuickAmounts.serializer(), s.quickAmounts)
+                            container.settings.setQuickAmounts(qa)
                         } catch (_: Exception) { }
                     }
                 }
