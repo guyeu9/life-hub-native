@@ -23,6 +23,7 @@ import com.lifehub.util.yuan
 import com.lifehub.viewmodel.HomeItem
 import com.lifehub.viewmodel.HomeUiState
 import com.lifehub.viewmodel.HomeViewModel
+import com.lifehub.viewmodel.HomeViewModelFactory
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 

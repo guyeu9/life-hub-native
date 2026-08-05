@@ -169,7 +169,7 @@ private fun MediaMetrics(s: MediaUiState) {
 }
 
 @Composable
-private fun Metric(label: String, value: String, unit: String, desc: String, color: Color) {
+private fun RowScope.Metric(label: String, value: String, unit: String, desc: String, color: Color) {
     Surface(
         modifier = Modifier.weight(1f),
         shape = RoundedCornerShape(10.dp),

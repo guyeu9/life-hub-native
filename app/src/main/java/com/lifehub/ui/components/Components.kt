@@ -46,8 +46,8 @@ fun LifeCard(
 fun SegmentedButton(
     options: List<String>,
     selected: String,
-    onSelect: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onSelect: (String) -> Unit
 ) {
     Row(
         modifier = modifier

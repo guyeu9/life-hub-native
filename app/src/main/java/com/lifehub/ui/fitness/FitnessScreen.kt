@@ -159,7 +159,7 @@ private fun FitnessMetrics(state: FitnessUiState) {
 }
 
 @Composable
-private fun MetricCell(label: String, value: String, unit: String, desc: String, color: Color) {
+private fun RowScope.MetricCell(label: String, value: String, unit: String, desc: String, color: Color) {
     Surface(
         modifier = Modifier.weight(1f),
         shape = RoundedCornerShape(10.dp),
