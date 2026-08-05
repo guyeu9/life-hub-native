@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="paper_bg">#F4F2ED</color>
+    <color name="clay">#A2543C</color>
+    <color name="sage">#5D7561</color>
+    <color name="ink">#2B2622</color>
+    <color name="line">#DAD5CC</color>
+    <color name="amber">#C8893B</color>
+    <color name="slate">#647D8E</color>
+</resources>

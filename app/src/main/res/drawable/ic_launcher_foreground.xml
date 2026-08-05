@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 简单矢量图标：暖底+陶土圆环 代表"生活台" -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="@color/clay"
+        android:pathData="M54,18 A36,36 0 1,1 53.99,18 Z M54,30 A24,24 0 1,1 53.99,30 Z"
+        android:strokeColor="@color/clay"
+        android:strokeWidth="0"/>
+</vector>
