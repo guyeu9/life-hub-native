@@ -84,8 +84,8 @@ fun PillTag(
     text: String,
     color: Color,
     selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
 ) {
     Surface(
         modifier = modifier
@@ -109,8 +109,8 @@ fun PillTag(
 @Composable
 fun AmountStepper(
     value: String,
-    onValueChange: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onValueChange: (String) -> Unit
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
