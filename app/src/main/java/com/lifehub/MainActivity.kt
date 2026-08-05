@@ -10,6 +10,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.core.view.WindowCompat
@@ -18,6 +19,7 @@ import com.lifehub.ui.navigation.LifeHubBottomBar
 import com.lifehub.ui.navigation.LifeHubNavGraph
 import com.lifehub.ui.theme.LifeHubTheme
 import com.lifehub.util.JsonBackupUtil
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -29,13 +31,16 @@ class MainActivity : ComponentActivity() {
             LifeHubTheme {
                 val navController = rememberNavController()
                 val app = application as LifeHubApplication
+                val scope = rememberCoroutineScope()
 
                 // 导出：保存文件选择器
                 val exportLauncher = rememberLauncherForActivityResult(
                     ActivityResultContracts.CreateDocument("application/json")
                 ) { uri ->
                     uri ?: return@rememberLauncherForActivityResult
-                    JsonBackupUtil.exportBackup(this, app.container, uri)
+                    scope.launch {
+                        JsonBackupUtil.exportBackup(this@MainActivity, app.container, uri)
+                    }
                 }
 
                 // 导入：打开文件选择器
@@ -43,8 +48,8 @@ class MainActivity : ComponentActivity() {
                     ActivityResultContracts.OpenDocument()
                 ) { uri ->
                     uri ?: return@rememberLauncherForActivityResult
-                    JsonBackupUtil.importBackup(this, app.container, uri) {
-                        // 导入完成后回调（后续可加 Toast）
+                    scope.launch {
+                        JsonBackupUtil.importBackup(this@MainActivity, app.container, uri) { }
                     }
                 }
 

@@ -6,12 +6,12 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 
 /**
@@ -21,42 +21,50 @@ import kotlinx.serialization.json.Json
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "life_hub_settings")
 
-@Serializable
-data class CategoryDef(
-    val name: String,
-    val color: String = "#A2543C"
-)
-
-@Serializable
-data class FieldTable(
-    val expenseCats: List<CategoryDef> = listOf(
-        CategoryDef("餐饮", "#A2543C"),
-        CategoryDef("交通", "#647D8E"),
-        CategoryDef("日用", "#5D7561"),
-        CategoryDef("娱乐", "#C8893B")
-    ),
-    val incomeCats: List<CategoryDef> = listOf(
-        CategoryDef("工资", "#5D7561"),
-        CategoryDef("奖金", "#C8893B"),
-        CategoryDef("其他", "#647D8E")
-    ),
-    val rebateCats: List<CategoryDef> = listOf(
-        CategoryDef("购物返利", "#C8893B"),
-        CategoryDef("餐饮返利", "#A2543C")
-    ),
-    val priorities: List<CategoryDef> = listOf(
-        CategoryDef("P0", "#A2543C"),
-        CategoryDef("P1", "#C8893B"),
-        CategoryDef("P2", "#5D7561")
-    ),
-    val mediaTypes: List<CategoryDef> = listOf(
-        CategoryDef("书", "#5D7561"),
-        CategoryDef("影", "#647D8E"),
-        CategoryDef("音", "#C8893B")
-    )
-)
-
 class SettingsRepository(private val context: Context) {
+
+    @Serializable
+    data class CategoryDef(
+        val name: String,
+        val color: String = "#A2543C"
+    )
+
+    @Serializable
+    data class FieldTable(
+        val expenseCats: List<CategoryDef> = listOf(
+            CategoryDef("餐饮", "#A2543C"),
+            CategoryDef("交通", "#647D8E"),
+            CategoryDef("日用", "#5D7561"),
+            CategoryDef("娱乐", "#C8893B")
+        ),
+        val incomeCats: List<CategoryDef> = listOf(
+            CategoryDef("工资", "#5D7561"),
+            CategoryDef("奖金", "#C8893B"),
+            CategoryDef("其他", "#647D8E")
+        ),
+        val rebateCats: List<CategoryDef> = listOf(
+            CategoryDef("购物返利", "#C8893B"),
+            CategoryDef("餐饮返利", "#A2543C")
+        ),
+        val priorities: List<CategoryDef> = listOf(
+            CategoryDef("P0", "#A2543C"),
+            CategoryDef("P1", "#C8893B"),
+            CategoryDef("P2", "#5D7561")
+        ),
+        val mediaTypes: List<CategoryDef> = listOf(
+            CategoryDef("书", "#5D7561"),
+            CategoryDef("影", "#647D8E"),
+            CategoryDef("音", "#C8893B")
+        )
+    )
+
+    @Serializable
+    data class FitnessProfile(
+        val height: Double = 170.0,    // 身高 cm
+        val startWeight: Double = 0.0, // 起点体重 kg（0 = 取首条记录）
+        val targetWeight: Double = 60.0,// 目标体重 kg
+        val tdee: Double = 1600.0       // 基础代谢 + 日常消耗 kcal
+    )
 
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = true }
 
@@ -84,8 +92,7 @@ class SettingsRepository(private val context: Context) {
     val backupCount: Flow<Int> = context.dataStore.data.map { it[KEY_BACKUP_COUNT] ?: 0 }
     suspend fun incrementBackupCount() {
         context.dataStore.edit { prefs ->
-            val cur = prefs[KEY_BACKUP_COUNT] ?: 0
-            it[KEY_BACKUP_COUNT] = cur + 1
+            prefs[KEY_BACKUP_COUNT] = (prefs[KEY_BACKUP_COUNT] ?: 0) + 1
         }
     }
     suspend fun resetBackupCount() {
@@ -108,15 +115,7 @@ class SettingsRepository(private val context: Context) {
         private val KEY_BUDGET = doublePreferencesKey("monthly_budget")
         private val KEY_NET_REBATE = booleanPreferencesKey("net_rebate")
         private val KEY_FIELDS = stringPreferencesKey("field_table")
-        private val KEY_BACKUP_COUNT = androidx.datastore.preferences.core.intPreferencesKey("backup_count")
+        private val KEY_BACKUP_COUNT = intPreferencesKey("backup_count")
         private val KEY_FITNESS_PROFILE = stringPreferencesKey("fitness_profile")
     }
 }
-
-@Serializable
-data class FitnessProfile(
-    val height: Double = 170.0,    // 身高 cm
-    val startWeight: Double = 0.0, // 起点体重 kg（0 = 取首条记录）
-    val targetWeight: Double = 60.0,// 目标体重 kg
-    val tdee: Double = 1600.0       // 基础代谢 + 日常消耗 kcal
-)

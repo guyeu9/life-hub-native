@@ -25,15 +25,15 @@ class LifeHubApplication : Application() {
             settings = SettingsRepository(this)
         )
     }
-}
 
-data class AppContainer(
-    val ledger: LedgerRepository,
-    val habit: HabitRepository,
-    val schedule: ScheduleRepository,
-    val fitness: FitnessRepository,
-    val fitnessPlan: FitnessPlanRepository,
-    val wish: WishRepository,
-    val media: MediaRepository,
-    val settings: SettingsRepository
-)
+    data class AppContainer(
+        val ledger: LedgerRepository,
+        val habit: HabitRepository,
+        val schedule: ScheduleRepository,
+        val fitness: FitnessRepository,
+        val fitnessPlan: FitnessPlanRepository,
+        val wish: WishRepository,
+        val media: MediaRepository,
+        val settings: SettingsRepository
+    )
+}

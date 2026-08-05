@@ -1,5 +1,7 @@
 package com.lifehub.util
 
+import java.util.Locale
+
 /**
  * 金额格式化工具
  */
