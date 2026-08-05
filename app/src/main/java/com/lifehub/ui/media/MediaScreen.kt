@@ -126,7 +126,7 @@ fun MediaScreen() {
                 Text("列表 · ${list.size} 条", style = MaterialTheme.typography.titleMedium, color = Ink)
             }
             items(list) { item ->
-                MediaRow(item) { editing = item }
+                MediaRow(item, onOpen = { editing = item }, onDelete = { vm.delete(item) })
             }
         }
     }
@@ -284,8 +284,9 @@ private fun CoverCard(item: MediaItemEntity, onOpen: (MediaItemEntity) -> Unit) 
 }
 
 @Composable
-private fun MediaRow(item: MediaItemEntity, onOpen: (MediaItemEntity) -> Unit) {
+private fun MediaRow(item: MediaItemEntity, onOpen: (MediaItemEntity) -> Unit, onDelete: () -> Unit) {
     val color = parseColor(item.color, Clay)
+    var showDeleteConfirm by remember { mutableStateOf(false) }
     Surface(
         modifier = Modifier.fillMaxWidth().clickable { onOpen(item) },
         shape = RoundedCornerShape(8.dp),
@@ -310,7 +311,27 @@ private fun MediaRow(item: MediaItemEntity, onOpen: (MediaItemEntity) -> Unit) {
                     if (item.review.isNotBlank()) Text(item.review, style = MaterialTheme.typography.labelSmall, color = InkSoft, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                 }
             }
+            TextButton(onClick = { showDeleteConfirm = true }) {
+                Text("删除", style = MaterialTheme.typography.labelSmall, color = Danger)
+            }
         }
+    }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDeleteConfirm = false
+                    onDelete()
+                }) { Text("删除", color = Danger) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) { Text("取消", color = InkSoft) }
+            },
+            title = { Text("确认删除", color = Ink) },
+            text = { Text("确定要删除这条记录吗？", color = InkSoft) }
+        )
     }
 }
 
@@ -398,12 +419,13 @@ private fun MediaEditDialog(
 ) {
     var review by remember(item.id) { mutableStateOf(item.review) }
     var date by remember(item.id) { mutableStateOf(item.finishDate) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = { TextButton(onClick = onDismiss) { Text("完成", color = Clay) } },
         dismissButton = {
-            TextButton(onClick = { onDelete() }) { Text("删除", color = Danger) }
+            TextButton(onClick = { showDeleteConfirm = true }) { Text("删除", color = Danger) }
         },
         title = { Text(item.title, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         text = {
@@ -442,6 +464,23 @@ private fun MediaEditDialog(
             }
         }
     )
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDeleteConfirm = false
+                    onDelete()
+                }) { Text("删除", color = Danger) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) { Text("取消", color = InkSoft) }
+            },
+            title = { Text("确认删除", color = Ink) },
+            text = { Text("确定要删除这条记录吗？", color = InkSoft) }
+        )
+    }
 }
 
 @Composable
@@ -482,7 +521,7 @@ private fun StarPicker(value: Float, onPick: (Float) -> Unit) {
                 "★",
                 color = if (on) Amber else Line,
                 fontSize = 22.sp,
-                modifier = Modifier.clickable { onPick(i.toFloat()) }.padding(horizontal = 2.dp)
+                modifier = Modifier.clickable { onPick(if (i == value.toInt()) 0f else i.toFloat()) }.padding(horizontal = 2.dp)
             )
         }
     }

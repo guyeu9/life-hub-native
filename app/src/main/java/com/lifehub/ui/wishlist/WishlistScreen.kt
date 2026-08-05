@@ -49,7 +49,12 @@ fun WishlistScreen() {
         verticalArrangement = Arrangement.spacedBy(14.dp),
         contentPadding = PaddingValues(top = 24.dp, bottom = 24.dp)
     ) {
-        item { Text("待买清单", style = MaterialTheme.typography.displayMedium, color = Ink) }
+        item {
+            Column {
+                Text("待买清单", style = MaterialTheme.typography.displayMedium, color = Ink)
+                Text("先记下来，过几天再看还想不想要。", style = MaterialTheme.typography.labelMedium, color = InkSoft)
+            }
+        }
         item { WishMetrics(state) }
 
         item {
@@ -158,7 +163,7 @@ private fun RowScope.Metric(label: String, value: String, unit: String, desc: St
 @Composable
 private fun PrioritySelector(selected: String, onSelect: (String) -> Unit) {
     val pris = listOf("P0", "P1", "P2")
-    val colors = mapOf("P0" to Danger, "P1" to Clay, "P2" to Sage)
+    val colors = mapOf("P0" to Danger, "P1" to Clay, "P2" to InkSoft)
     Row(Modifier.clip(RoundedCornerShape(8.dp)).border(1.dp, Line, RoundedCornerShape(8.dp))) {
         pris.forEach { p ->
             val on = p == selected
@@ -201,7 +206,11 @@ private fun WishRow(
     onDelete: () -> Unit,
     onBoughtLedger: () -> Unit
 ) {
-    val priColor = when (item.priority) { "P0" -> Danger; "P1" -> Clay; else -> Sage }
+    val priColor = when (item.priority) { "P0" -> Danger; "P1" -> Clay; else -> InkSoft }
+    val cal = remember(item.id) {
+        java.util.Calendar.getInstance().apply { timeInMillis = item.createdAt }
+    }
+    val joinText = "${cal.get(java.util.Calendar.MONTH) + 1}月${cal.get(java.util.Calendar.DAY_OF_MONTH)}日 加入"
     Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(8.dp), color = PaperCard) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp, horizontal = 8.dp),
@@ -224,6 +233,7 @@ private fun WishRow(
                     Surface(shape = RoundedCornerShape(4.dp), color = priColor.copy(alpha = 0.15f)) {
                         Text(item.priority, style = MaterialTheme.typography.labelSmall, color = priColor, modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp))
                     }
+                    Text(joinText, style = MaterialTheme.typography.labelSmall, color = InkSoft)
                     if (item.note.isNotBlank()) Text(item.note, style = MaterialTheme.typography.labelSmall, color = InkSoft)
                 }
             }
@@ -234,7 +244,7 @@ private fun WishRow(
                     Text("已买并记账", style = MaterialTheme.typography.labelSmall)
                 }
             }
-            Text("🗑", modifier = Modifier.clickable { onDelete() }.padding(4.dp), style = MaterialTheme.typography.labelMedium)
+            Text("删除", modifier = Modifier.clickable { onDelete() }.padding(4.dp), style = MaterialTheme.typography.labelMedium, color = Danger)
         }
     }
 }

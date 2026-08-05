@@ -73,9 +73,16 @@ class WishViewModel(app: LifeHubApplication) : AndroidViewModel(app) {
 
     /** 已买并记账：标记已买 + 写一笔支出账目（购物分类），防重复记账 */
     fun markBoughtAndLedger(item: WishItemEntity, fields: SettingsRepository.FieldTable) {
-        if (item.boughtLedgerId > 0) return
+        if (item.boughtLedgerId > 0) {
+            if (!item.bought) {
+                viewModelScope.launch { container.wish.update(item.copy(bought = true)) }
+            }
+            return
+        }
         viewModelScope.launch {
-            val shoppingCat = fields.expenseCats.firstOrNull()?.name ?: "购物"
+            val shoppingCat = fields.expenseCats.firstOrNull { it.name == "购物" }?.name
+                ?: fields.expenseCats.firstOrNull()?.name
+                ?: "购物"
             val ledgerId = container.ledger.insert(
                 LedgerEntity(
                     type = "expense",

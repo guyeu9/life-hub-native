@@ -73,7 +73,7 @@ class SettingsRepository(private val context: Context) {
     suspend fun setBudget(v: Double) { context.dataStore.edit { it[KEY_BUDGET] = v } }
 
     // 返利是否冲抵支出
-    val netRebate: Flow<Boolean> = context.dataStore.data.map { it[KEY_NET_REBATE] ?: true }
+    val netRebate: Flow<Boolean> = context.dataStore.data.map { it[KEY_NET_REBATE] ?: false }
     suspend fun setNetRebate(v: Boolean) { context.dataStore.edit { it[KEY_NET_REBATE] = v } }
 
     // 动态字段表

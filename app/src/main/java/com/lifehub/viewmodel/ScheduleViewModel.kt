@@ -18,7 +18,9 @@ data class ScheduleUiState(
     val todayCount: Int = 0,
     val todayDone: Int = 0,
     val weekCount: Int = 0,
-    val doneCount: Int = 0
+    val doneCount: Int = 0,
+    val mon: String = "",
+    val sun: String = ""
 )
 
 data class ScheduleRow(
@@ -36,13 +38,16 @@ class ScheduleViewModel(app: LifeHubApplication) : AndroidViewModel(app) {
     val uiState: StateFlow<ScheduleUiState> = container.schedule.getAll().map { all ->
         val t = todayKey()
         val mon = weekMondayKey()
+        val sun = weekSundayKey()
         ScheduleUiState(
             all = all,
-            overdueCount = all.count { !it.done && it.due > 0 && dateKeyFromDue(it.due) < t },
-            todayCount = all.count { dateKeyFromDue(it.due) == t },
-            todayDone = all.count { dateKeyFromDue(it.due) == t && it.done },
-            weekCount = all.count { !it.done && dateKeyFromDue(it.due) in mon..t },
-            doneCount = all.count { it.done }
+            overdueCount = all.count { it.due > 0 && !it.done && dateKeyFromDue(it.due) < t },
+            todayCount = all.count { it.due > 0 && dateKeyFromDue(it.due) == t },
+            todayDone = all.count { it.due > 0 && dateKeyFromDue(it.due) == t && it.done },
+            weekCount = all.count { it.due > 0 && !it.done && dateKeyFromDue(it.due) in mon..sun },
+            doneCount = all.count { it.done },
+            mon = mon,
+            sun = sun
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ScheduleUiState())
 
@@ -51,26 +56,27 @@ class ScheduleViewModel(app: LifeHubApplication) : AndroidViewModel(app) {
     fun filtered(state: ScheduleUiState): List<ScheduleRow> {
         val t = todayKey()
         val mon = weekMondayKey()
+        val sun = weekSundayKey()
         val sorted = state.all.sortedWith(compareBy({ it.done }, { it.due }))
         return sorted.filter { x ->
             val dk = dateKeyFromDue(x.due)
             when (_scope.value) {
-                PlanScope.TODAY -> !x.done && dk <= t
-                PlanScope.WEEK -> !x.done && dk in mon..weekSundayKey()
+                PlanScope.TODAY -> x.due > 0 && !x.done && dk <= t
+                PlanScope.WEEK -> x.due > 0 && !x.done && dk in mon..sun
                 PlanScope.TODO -> !x.done
                 PlanScope.DONE -> x.done
             }
         }.map {
             val dk = dateKeyFromDue(it.due)
-            val over = !it.done && dk < t
+            val over = it.due > 0 && !it.done && dk < t
             ScheduleRow(it, over, if (over) diffDaysKey(dk, t) else 0)
         }
     }
 
-    fun add(title: String, due: Long, priority: String, note: String) {
+    fun add(title: String, due: Long, priority: String, tag: String, time: String, note: String) {
         viewModelScope.launch {
             container.schedule.insert(
-                ScheduleEntity(title = title, note = note, priority = priority, due = due, done = false)
+                ScheduleEntity(title = title, note = note, priority = priority, tag = tag, time = time, due = due, done = false)
             )
         }
     }

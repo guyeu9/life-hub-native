@@ -86,11 +86,12 @@ class MediaViewModel(app: LifeHubApplication) : AndroidViewModel(app) {
     fun add(type: String, title: String, author: String, status: String, rating: Float, review: String, color: String) {
         if (title.isBlank()) return
         viewModelScope.launch {
-            val finishDate = if (status == "done") todayKey() else ""
+            val effectiveStatus = if (rating > 0f) "done" else status
+            val finishDate = if (effectiveStatus == "done") todayKey() else ""
             container.media.insert(
                 MediaItemEntity(
                     type = type, title = title.trim(), author = author.trim(),
-                    status = status, rating = rating, review = review.trim(),
+                    status = effectiveStatus, rating = rating, review = review.trim(),
                     color = color, finishDate = finishDate
                 )
             )
@@ -110,7 +111,14 @@ class MediaViewModel(app: LifeHubApplication) : AndroidViewModel(app) {
         update(item.copy(status = status, finishDate = finishDate))
     }
 
-    fun setRating(item: MediaItemEntity, rating: Float) = update(item.copy(rating = rating))
+    fun setRating(item: MediaItemEntity, rating: Float) {
+        if (rating > 0f && item.status != "done") {
+            val finishDate = if (item.finishDate.isBlank()) todayKey() else item.finishDate
+            update(item.copy(rating = rating, status = "done", finishDate = finishDate))
+        } else {
+            update(item.copy(rating = rating))
+        }
+    }
     fun setFinishDate(item: MediaItemEntity, date: String) = update(item.copy(finishDate = date))
     fun setReview(item: MediaItemEntity, review: String) = update(item.copy(review = review))
 

@@ -5,13 +5,11 @@ import androidx.lifecycle.viewModelScope
 import com.lifehub.LifeHubApplication
 import com.lifehub.data.entity.LedgerEntity
 import com.lifehub.data.entity.ScheduleEntity
-import com.lifehub.util.dateKey
 import com.lifehub.util.endOfToday
 import com.lifehub.util.startOfToday
 import com.lifehub.util.todayKey
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
-import java.util.Calendar
 
 /**
  * 首页状态
@@ -26,6 +24,8 @@ data class HomeUiState(
     val ledgerExpense: Double = 0.0,
     val ledgerRebate: Double = 0.0,
     val ledgerCount: Int = 0,
+    val budget: Double = 0.0,
+    val netRebate: Boolean = false,
     val todayWeight: Double? = null,
     val todayBodyFat: Double? = null,
     val todayItems: List<HomeItem> = emptyList()
@@ -51,7 +51,9 @@ class HomeViewModel(app: LifeHubApplication) : AndroidViewModel(app) {
             container.habit.getLogRange(todayKey(), todayKey()),
             ledgerTodayFlow(),
             container.fitness.getAll(),
-            container.schedule.getAll()
+            container.schedule.getAll(),
+            container.settings.monthlyBudget,
+            container.settings.netRebate
         )
     ) { arr ->
         val pending = arr[0] as List<ScheduleEntity>
@@ -61,10 +63,18 @@ class HomeViewModel(app: LifeHubApplication) : AndroidViewModel(app) {
         val ledger = arr[4] as List<LedgerEntity>
         val fitness = arr[5] as List<com.lifehub.data.entity.FitnessEntity>
         val allSchedules = arr[6] as List<ScheduleEntity>
+        val budget = arr[7] as Double
+        val netRebate = arr[8] as Boolean
 
-        // 待办完成率：已完成 / 全部
-        val doneCount = allSchedules.count { it.done }
-        val totalTodos = allSchedules.size
+        // 今日范围（用于识别"今日任务"）
+        val todayStart = startOfToday()
+        val todayEnd = endOfToday()
+        val todaySchedules = allSchedules.filter { it.due in todayStart..todayEnd }
+
+        // 待办完成率：doneT = 今日已完成数；totalTodos = 逾期任务数（非今日） + 今日任务数
+        val doneCount = todaySchedules.count { it.done }
+        val overdueNotToday = overdue.filter { it.due < todayStart }
+        val totalTodos = overdueNotToday.size + todaySchedules.size
 
         // 记账当日汇总
         val inc = ledger.filter { it.type == "income" }.sumOf { it.amount }
@@ -103,6 +113,8 @@ class HomeViewModel(app: LifeHubApplication) : AndroidViewModel(app) {
             ledgerExpense = exp,
             ledgerRebate = reb,
             ledgerCount = ledger.size,
+            budget = budget,
+            netRebate = netRebate,
             todayWeight = todayFit?.takeIf { it.weight > 0 }?.weight,
             todayBodyFat = todayFit?.takeIf { it.fat > 0 }?.fat,
             todayItems = items
@@ -119,7 +131,7 @@ class HomeViewModel(app: LifeHubApplication) : AndroidViewModel(app) {
         return container.ledger.getRange(s, e)
     }
 
-    /** 待办完成率 */
+    /** 待办完成率（只统计逾期+今日任务） */
     fun todoPct(state: HomeUiState): Int {
         if (state.todoTotal == 0) return 0
         return ((state.todoDone.toFloat() / state.todoTotal) * 100).toInt().coerceIn(0, 100)
@@ -129,5 +141,23 @@ class HomeViewModel(app: LifeHubApplication) : AndroidViewModel(app) {
     fun habitPct(state: HomeUiState): Int {
         if (state.habitTotal == 0) return 0
         return ((state.habitDoneToday.toFloat() / state.habitTotal) * 100).toInt().coerceIn(0, 100)
+    }
+
+    /**
+     * 综合生活指数 (0-100)
+     * 按 HTML 公式：待办完成率×30% + 习惯完成率×30% + 今日记账(10分) + 预算健康度(10分) + 身体数据(20分)
+     */
+    fun overallPct(state: HomeUiState): Int {
+        val todo = todoPct(state) * 0.3
+        val habit = habitPct(state) * 0.3
+        val ledgerScore = if (state.ledgerCount > 0) 10.0 else 0.0
+        val net = if (state.netRebate) state.ledgerExpense - state.ledgerRebate else state.ledgerExpense
+        val budgetScore = if (state.budget > 0) {
+            if (net <= state.budget) 10.0 else (10.0 * (state.budget / net)).coerceIn(0.0, 10.0)
+        } else {
+            10.0
+        }
+        val fitnessScore = if (state.todayWeight != null || state.todayBodyFat != null) 20.0 else 0.0
+        return (todo + habit + ledgerScore + budgetScore + fitnessScore).toInt().coerceIn(0, 100)
     }
 }

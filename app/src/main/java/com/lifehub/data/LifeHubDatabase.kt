@@ -21,7 +21,7 @@ import com.lifehub.data.entity.*
         WishItemEntity::class,
         MediaItemEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class LifeHubDatabase : androidx.room.RoomDatabase() {

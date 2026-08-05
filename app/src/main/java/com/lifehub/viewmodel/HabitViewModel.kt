@@ -14,9 +14,11 @@ import java.util.*
 
 data class HabitView(
     val habit: HabitEntity,
-    val doneToday: Boolean,
+    val todayDone: Boolean,
+    val todayValue: Double,
     val streak: Int,
-    val monthDays: List<Boolean>  // 最近 30 天打卡
+    val rate30: Float,
+    val last30States: List<Float>  // 热力图数据 0..1 ratio
 )
 
 class HabitViewModel(app: LifeHubApplication) : AndroidViewModel(app) {
@@ -27,15 +29,20 @@ class HabitViewModel(app: LifeHubApplication) : AndroidViewModel(app) {
         container.habit.getLogRange(recentDateKeys(30).first(), todayKey())
     ) { habits, logs ->
         val logMap = logs.groupBy { it.habitId }
+        val keys = recentDateKeys(30)
         habits.map { h ->
             val hLogs = logMap[h.id] ?: emptyList()
-            val doneSet = hLogs.map { it.dateKey }.toSet()
-            val monthDays = recentDateKeys(30).map { doneSet.contains(it) }
+            val logByDate = hLogs.associateBy { it.dateKey }
+            val doneSet = hLogs.filter { it.done }.map { it.dateKey }.toSet()
+            val todayLog = logByDate[todayKey()]
+            val last30States = keys.map { k -> logRatio(logByDate[k], h.target) }
             HabitView(
                 habit = h,
-                doneToday = doneSet.contains(todayKey()),
+                todayDone = todayLog?.done == true,
+                todayValue = todayLog?.value ?: 0.0,
                 streak = computeStreak(doneSet),
-                monthDays = monthDays
+                rate30 = computeRate30(doneSet, keys),
+                last30States = last30States
             )
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -53,15 +60,55 @@ class HabitViewModel(app: LifeHubApplication) : AndroidViewModel(app) {
         return streak
     }
 
-    fun toggleToday(habitId: Long) {
-        viewModelScope.launch {
-            container.habit.toggleLog(habitId, todayKey())
+    private fun computeRate30(doneSet: Set<String>, keys: List<String>): Float {
+        if (keys.isEmpty()) return 0f
+        val done = keys.count { doneSet.contains(it) }
+        return done.toFloat() / keys.size
+    }
+
+    /** 热力图 ratio：done 时至少为 1，否则按 value/target 计算 */
+    private fun logRatio(log: HabitLogEntity?, target: Int): Float {
+        if (log == null) return 0f
+        if (target <= 0) return if (log.done) 1f else 0f
+        val r = log.value.toFloat() / target
+        return when {
+            log.done && r <= 0f -> 1f
+            else -> r.coerceIn(0f, 1f)
         }
     }
 
-    fun addHabit(name: String, color: String) {
+    fun toggleCheck(habit: HabitEntity) {
         viewModelScope.launch {
-            container.habit.insertHabit(HabitEntity(name = name, color = color))
+            container.habit.toggleLog(habit.id, todayKey())
+        }
+    }
+
+    fun incrementCount(habit: HabitEntity, delta: Int) {
+        viewModelScope.launch {
+            container.habit.incrementLog(habit.id, todayKey(), delta)
+        }
+    }
+
+    fun setValue(habit: HabitEntity, value: Double) {
+        viewModelScope.launch {
+            container.habit.setValueLog(habit.id, todayKey(), value)
+        }
+    }
+
+    fun addHabit(name: String, type: String, target: Int, unit: String) {
+        viewModelScope.launch {
+            val count = container.habit.getAllHabitsOnce().size
+            val palette = listOf("#a2543c", "#5d7561", "#4a6478", "#a8842f", "#8d6b52", "#6b6a94")
+            val color = palette[count % palette.size]
+            container.habit.insertHabit(
+                HabitEntity(
+                    name = name,
+                    type = type,
+                    target = if (target < 1) 1 else target,
+                    unit = unit,
+                    color = color
+                )
+            )
         }
     }
 

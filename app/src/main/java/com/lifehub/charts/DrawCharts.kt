@@ -211,34 +211,45 @@ fun MonthBarChart(
 }
 
 /**
- * 30 格热力图（习惯打卡）
- * states: 30 个值
+ * 渐变热力图（习惯打卡）
+ * states: 每日 ratio 0..1
  */
 @Composable
 fun HeatmapChart(
     modifier: Modifier = Modifier.fillMaxWidth(),
-    states: List<Boolean>,
+    states: List<Float>,
     color: Color = Sage
 ) {
     Canvas(modifier = modifier.height(80.dp)) {
         val n = states.size.coerceAtLeast(1)
-        val cols = 10
+        val cols = 15
         val rows = (n + cols - 1) / cols
         val gap = 4f
         val cell = (size.width - (cols - 1) * gap) / cols
         val cellH = (size.height - (rows - 1) * gap) / rows
+        val todayIndex = n - 1
 
-        states.forEachIndexed { i, done ->
+        states.forEachIndexed { i, ratio ->
             val c = i % cols
             val r = i / cols
             val x = c * (cell + gap)
             val y = r * (cellH + gap)
+            val alpha = (0.24f + ratio * 0.76f).coerceIn(0f, 1f)
             drawRoundRect(
-                color = if (done) color else Line,
+                color = color.copy(alpha = alpha),
                 topLeft = Offset(x, y),
                 size = Size(cell, cellH),
                 cornerRadius = androidx.compose.ui.geometry.CornerRadius(3f, 3f)
             )
+            if (i == todayIndex) {
+                drawRoundRect(
+                    color = Color(0xFF2B2622),
+                    topLeft = Offset(x, y),
+                    size = Size(cell, cellH),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(3f, 3f),
+                    style = Stroke(width = 2f)
+                )
+            }
         }
     }
 }

@@ -17,12 +17,64 @@ class HabitRepository(
         logDao.getRange(startKey, endKey)
 
     suspend fun findLog(habitId: Long, dateKey: String) = logDao.find(habitId, dateKey)
+
+    /** check 类型：切换打卡状态 */
     suspend fun toggleLog(habitId: Long, dateKey: String) {
         val existing = logDao.find(habitId, dateKey)
         if (existing == null) {
-            logDao.insert(HabitLogEntity(habitId = habitId, dateKey = dateKey, done = true))
+            val habit = habitDao.getAllOnce().find { it.id == habitId }
+            val target = habit?.target ?: 1
+            logDao.insert(
+                HabitLogEntity(
+                    habitId = habitId,
+                    dateKey = dateKey,
+                    done = true,
+                    value = target.toDouble()
+                )
+            )
         } else {
             logDao.deleteByKey(habitId, dateKey)
+        }
+    }
+
+    /** count 类型：增减次数，自动计算 done = (value >= target) */
+    suspend fun incrementLog(habitId: Long, dateKey: String, delta: Int) {
+        val habit = habitDao.getAllOnce().find { it.id == habitId } ?: return
+        val target = habit.target
+        val existing = logDao.find(habitId, dateKey)
+        val newVal = ((existing?.value ?: 0.0) + delta).coerceAtLeast(0.0)
+        val done = newVal >= target
+        if (existing == null) {
+            logDao.insert(
+                HabitLogEntity(
+                    habitId = habitId,
+                    dateKey = dateKey,
+                    done = done,
+                    value = newVal
+                )
+            )
+        } else {
+            logDao.updateValue(habitId, dateKey, newVal, done)
+        }
+    }
+
+    /** value 类型：设置数值，自动计算 done = (value >= target) */
+    suspend fun setValueLog(habitId: Long, dateKey: String, value: Double) {
+        val habit = habitDao.getAllOnce().find { it.id == habitId } ?: return
+        val target = habit.target
+        val done = value >= target
+        val existing = logDao.find(habitId, dateKey)
+        if (existing == null) {
+            logDao.insert(
+                HabitLogEntity(
+                    habitId = habitId,
+                    dateKey = dateKey,
+                    done = done,
+                    value = value
+                )
+            )
+        } else {
+            logDao.updateValue(habitId, dateKey, value, done)
         }
     }
 

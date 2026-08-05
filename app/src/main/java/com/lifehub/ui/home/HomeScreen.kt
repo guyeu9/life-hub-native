@@ -5,12 +5,14 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lifehub.LifeHubApplication
@@ -43,6 +45,7 @@ fun HomeScreen(
     var qlType by remember { mutableStateOf("支出") }
     var qlAmount by remember { mutableStateOf("") }
     var qlNote by remember { mutableStateOf("") }
+    var qlRebateOf by remember { mutableStateOf("") }
 
     LazyColumn(
         modifier = Modifier
@@ -96,6 +99,8 @@ fun HomeScreen(
                 onAmountChange = { qlAmount = it },
                 note = qlNote,
                 onNoteChange = { qlNote = it },
+                rebateOf = qlRebateOf,
+                onRebateOfChange = { qlRebateOf = it },
                 categories = when (qlType) {
                     "支出" -> fields.expenseCats
                     "收入" -> fields.incomeCats
@@ -104,16 +109,19 @@ fun HomeScreen(
                 onSave = { cat ->
                     val typeCode = when (qlType) { "支出" -> "expense"; "收入" -> "income"; else -> "rebate" }
                     val amt = qlAmount.toDoubleOrNull() ?: 0.0
+                    val rebOf = qlRebateOf.toDoubleOrNull() ?: 0.0
                     if (amt > 0) {
                         scope.launch {
                             app.container.ledger.insert(
                                 com.lifehub.data.entity.LedgerEntity(
                                     type = typeCode, category = cat, amount = amt, note = qlNote,
+                                    rebateOf = rebOf,
                                     date = System.currentTimeMillis()
                                 )
                             )
                             qlAmount = ""
                             qlNote = ""
+                            qlRebateOf = ""
                         }
                     }
                 }
@@ -126,7 +134,8 @@ fun HomeScreen(
 private fun LifeIndexCard(state: HomeUiState, vm: HomeViewModel) {
     val todoPct = vm.todoPct(state)
     val habitPct = vm.habitPct(state)
-    val overall = (todoPct + habitPct) / 2 / 100f
+    // 综合生活指数 = 待办完成率×30% + 习惯完成率×30% + 今日记账(10) + 预算健康度(10) + 身体数据(20)
+    val overall = vm.overallPct(state) / 100f
 
     LifeCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -147,7 +156,6 @@ private fun LifeIndexCard(state: HomeUiState, vm: HomeViewModel) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 DimRow("待办", if (state.todoTotal == 0) "未设置" else "$todoPct%", todoPct / 100f, if (state.todoTotal == 0) Line else Clay)
                 DimRow("习惯", if (state.habitTotal == 0) "未设置" else "$habitPct%", habitPct / 100f, if (state.habitTotal == 0) Line else Sage)
-                val net = state.ledgerExpense - state.ledgerRebate
                 DimMoney(
                     "记账",
                     if (state.ledgerCount == 0) "未记账" else "收${money0(state.ledgerIncome)}·支${money0(state.ledgerExpense)}·记${state.ledgerCount}笔"
@@ -217,6 +225,8 @@ private fun QuickLedgerCard(
     onAmountChange: (String) -> Unit,
     note: String,
     onNoteChange: (String) -> Unit,
+    rebateOf: String,
+    onRebateOfChange: (String) -> Unit,
     categories: List<SettingsRepository.CategoryDef>,
     onSave: (String) -> Unit
 ) {
@@ -251,6 +261,22 @@ private fun QuickLedgerCard(
         }
         Spacer(Modifier.height(12.dp))
         AmountStepper(value = amount, onValueChange = onAmountChange)
+        // 返利类型：显示"对应消费"输入框
+        if (type == "返利") {
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(
+                value = rebateOf,
+                onValueChange = onRebateOfChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("对应消费金额（可选）") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Clay,
+                    unfocusedBorderColor = Line
+                )
+            )
+        }
         Spacer(Modifier.height(8.dp))
         OutlinedTextField(
             value = note,

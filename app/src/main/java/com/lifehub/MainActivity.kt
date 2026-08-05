@@ -1,6 +1,7 @@
 package com.lifehub
 
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -24,7 +25,6 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // 沉浸式状态栏（状态栏透明，内容延伸到顶部）
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
         setContent {
@@ -33,23 +33,23 @@ class MainActivity : ComponentActivity() {
                 val app = application as LifeHubApplication
                 val scope = rememberCoroutineScope()
 
-                // 导出：保存文件选择器
                 val exportLauncher = rememberLauncherForActivityResult(
                     ActivityResultContracts.CreateDocument("application/json")
                 ) { uri ->
                     uri ?: return@rememberLauncherForActivityResult
                     scope.launch {
-                        JsonBackupUtil.exportBackup(this@MainActivity, app.container, uri)
+                        val ok = JsonBackupUtil.exportBackup(this@MainActivity, app.container, uri)
+                        Toast.makeText(this@MainActivity, if (ok) "备份成功" else "备份失败", Toast.LENGTH_SHORT).show()
                     }
                 }
 
-                // 导入：打开文件选择器
                 val importLauncher = rememberLauncherForActivityResult(
                     ActivityResultContracts.OpenDocument()
                 ) { uri ->
                     uri ?: return@rememberLauncherForActivityResult
                     scope.launch {
-                        JsonBackupUtil.importBackup(this@MainActivity, app.container, uri) { }
+                        val ok = JsonBackupUtil.importBackup(this@MainActivity, app.container, uri)
+                        Toast.makeText(this@MainActivity, if (ok) "导入成功" else "导入失败：文件无效", Toast.LENGTH_SHORT).show()
                     }
                 }
 
