@@ -6,7 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -30,6 +30,10 @@ import com.lifehub.charts.HeatmapChart
 import com.lifehub.data.entity.HabitEntity
 import com.lifehub.ui.components.*
 import com.lifehub.ui.theme.*
+import com.lifehub.util.vibrateLight
+import com.lifehub.util.vibrateSuccess
+import com.lifehub.util.vibrateTick
+import com.lifehub.util.vibrateMedium
 import com.lifehub.viewmodel.HabitView
 import com.lifehub.viewmodel.HabitViewModel
 import com.lifehub.viewmodel.HabitViewModelFactory
@@ -41,6 +45,8 @@ fun HabitScreen() {
     val habits by vm.habits.collectAsState()
     var showAdd by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<HabitEntity?>(null) }
+    var confettiKey by remember { mutableIntStateOf(0) }
+    val context = LocalContext.current
 
     val total = habits.size
     val doneTodayCount = habits.count { it.todayDone }
@@ -53,7 +59,11 @@ fun HabitScreen() {
             title = { Text("删除习惯") },
             text = { Text("确定删除「${h.name}」及其所有打卡记录？") },
             confirmButton = {
-                TextButton(onClick = { vm.deleteHabit(h); deleteTarget = null }) {
+                TextButton(onClick = {
+                    context.vibrateMedium()
+                    vm.deleteHabit(h)
+                    deleteTarget = null
+                }) {
                     Text("删除", color = Danger)
                 }
             },
@@ -68,49 +78,81 @@ fun HabitScreen() {
             onDismiss = { showAdd = false },
             onAdd = { name, type, target, unit ->
                 vm.addHabit(name, type, target, unit)
+                context.vibrateSuccess()
+                confettiKey++
                 showAdd = false
             }
         )
     }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-        contentPadding = PaddingValues(top = 24.dp, bottom = 24.dp)
-    ) {
-        item {
-            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                Text("习惯健康", style = MaterialTheme.typography.displayMedium, color = Ink)
-                OutlinedButton(onClick = { showAdd = true }) {
-                    Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("习惯")
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            contentPadding = PaddingValues(top = 24.dp, bottom = 24.dp)
+        ) {
+            item {
+                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                    AnimatedHeader("习惯健康")
+                    OutlinedButton(onClick = {
+                        context.vibrateLight()
+                        showAdd = true
+                    }) {
+                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("习惯")
+                    }
                 }
             }
-        }
-        item {
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                MetricCard("今日完成", "$doneTodayCount/$total", Modifier.weight(1f))
-                MetricCard("最长连续", "${maxStreak}天", Modifier.weight(1f))
-                MetricCard("30天达成", "${(avgRate30 * 100).toInt()}%", Modifier.weight(1f))
-                MetricCard("正在跟踪", "$total", Modifier.weight(1f))
+            item {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    MetricCard("今日完成", "$doneTodayCount/$total", Modifier.weight(1f))
+                    MetricCard("最长连续", "${maxStreak}天", Modifier.weight(1f))
+                    MetricCard("30天达成", "${(avgRate30 * 100).toInt()}%", Modifier.weight(1f))
+                    MetricCard("正在跟踪", "$total", Modifier.weight(1f))
+                }
+            }
+            if (habits.isEmpty()) {
+                item { EmptyState("还没有习惯，点右上角添加一个") }
+            }
+            itemsIndexed(habits, key = { _, hv -> hv.habit.id }) { index, hv ->
+                HabitCard(
+                    hv = hv,
+                    modifier = Modifier.animateItemSlide(index),
+                    onToggleCheck = {
+                        if (!hv.todayDone) {
+                            context.vibrateSuccess()
+                            confettiKey++
+                        } else {
+                            context.vibrateTick()
+                        }
+                        vm.toggleCheck(hv.habit)
+                    },
+                    onIncrement = { delta ->
+                        context.vibrateTick()
+                        vm.incrementCount(hv.habit, delta)
+                    },
+                    onSetValue = { v ->
+                        if (v != hv.todayValue) {
+                            context.vibrateTick()
+                        }
+                        vm.setValue(hv.habit, v)
+                    },
+                    onDelete = {
+                        context.vibrateLight()
+                        deleteTarget = hv.habit
+                    }
+                )
             }
         }
-        if (habits.isEmpty()) {
-            item { EmptyState("还没有习惯，点右上角添加一个") }
-        }
-        items(habits, key = { it.habit.id }) { hv ->
-            HabitCard(
-                hv,
-                onToggleCheck = { vm.toggleCheck(hv.habit) },
-                onIncrement = { delta -> vm.incrementCount(hv.habit, delta) },
-                onSetValue = { v -> vm.setValue(hv.habit, v) },
-                onDelete = { deleteTarget = hv.habit }
-            )
-        }
+
+        ConfettiOverlay(
+            trigger = confettiKey,
+            modifier = Modifier.fillMaxSize()
+        )
     }
 }
 
@@ -129,7 +171,7 @@ private fun MetricCard(label: String, value: String, modifier: Modifier = Modifi
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(label, style = MaterialTheme.typography.labelSmall, color = InkSoft)
-            Text(value, style = MaterialTheme.typography.titleMedium, color = Ink)
+            AnimatedNumber(value = value, color = Ink)
         }
     }
 }
@@ -137,13 +179,14 @@ private fun MetricCard(label: String, value: String, modifier: Modifier = Modifi
 @Composable
 private fun HabitCard(
     hv: HabitView,
+    modifier: Modifier = Modifier,
     onToggleCheck: () -> Unit,
     onIncrement: (Int) -> Unit,
     onSetValue: (Double) -> Unit,
     onDelete: () -> Unit
 ) {
     val color = Color(AndroidColor.parseColor(hv.habit.color))
-    LifeCard {
+    LifeCard(modifier = modifier) {
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
             Text(hv.habit.name, style = MaterialTheme.typography.titleMedium, color = Ink)
             IconButton(onClick = onDelete) {
@@ -196,7 +239,7 @@ private fun CheckButton(checked: Boolean, color: Color, onClick: () -> Unit) {
                 .clip(CircleShape)
                 .background(if (checked) color else Color.Transparent)
                 .border(1.5.dp, color, CircleShape)
-                .clickable { onClick() },
+                .toggleClick { onClick() },
             contentAlignment = Alignment.Center
         ) {
             if (checked) {
@@ -218,15 +261,22 @@ private fun CountStepper(
     color: Color,
     onIncrement: (Int) -> Unit
 ) {
+    val ctx = LocalContext.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        IconButton(onClick = { onIncrement(-1) }) {
+        IconButton(onClick = {
+            ctx.vibrateTick()
+            onIncrement(-1)
+        }) {
             Icon(Icons.Filled.Remove, contentDescription = "减少", tint = color)
         }
         Text("$cur / $target", style = MaterialTheme.typography.titleMedium, color = Ink)
-        IconButton(onClick = { onIncrement(1) }) {
+        IconButton(onClick = {
+            ctx.vibrateTick()
+            onIncrement(1)
+        }) {
             Icon(Icons.Filled.Add, contentDescription = "增加", tint = color)
         }
     }
@@ -328,16 +378,16 @@ private fun AddHabitSheet(
                     )
                 }
             }
-            Button(
+            SuccessButton(
+                text = "添加",
                 onClick = {
                     if (name.isNotBlank()) {
                         val target = targetText.toIntOrNull() ?: 1
                         onAdd(name, typeMap[typeLabel] ?: "check", target, unit)
                     }
                 },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = Clay)
-            ) { Text("添加", color = PaperCard) }
+                modifier = Modifier.fillMaxWidth()
+            )
             Spacer(Modifier.height(8.dp))
         }
     }

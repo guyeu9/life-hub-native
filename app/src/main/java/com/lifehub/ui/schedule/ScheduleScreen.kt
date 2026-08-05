@@ -7,7 +7,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
@@ -23,12 +23,19 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lifehub.LifeHubApplication
 import com.lifehub.data.entity.ScheduleEntity
+import com.lifehub.ui.components.AnimatedHeader
+import com.lifehub.ui.components.AnimatedNumber
+import com.lifehub.ui.components.ConfettiOverlay
 import com.lifehub.ui.components.EmptyState
 import com.lifehub.ui.components.LifeCard
+import com.lifehub.ui.components.animateItemSlide
 import com.lifehub.ui.theme.*
 import com.lifehub.util.cnDateKey
 import com.lifehub.util.dateKey
 import com.lifehub.util.todayKey
+import com.lifehub.util.vibrateLight
+import com.lifehub.util.vibrateMedium
+import com.lifehub.util.vibrateSuccess
 import com.lifehub.viewmodel.PlanScope
 import com.lifehub.viewmodel.ScheduleRow
 import com.lifehub.viewmodel.ScheduleUiState
@@ -41,6 +48,7 @@ import java.util.Locale
 @Composable
 fun ScheduleScreen() {
     val app = LocalContext.current.applicationContext as LifeHubApplication
+    val ctx = LocalContext.current
     val vm: ScheduleViewModel = viewModel(factory = ScheduleViewModelFactory(app))
     val state by vm.uiState.collectAsState()
     val scope by vm.scope.collectAsState()
@@ -54,6 +62,7 @@ fun ScheduleScreen() {
     var tag by remember { mutableStateOf("生活") }
     var showDatePicker by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<ScheduleEntity?>(null) }
+    var confettiTrigger by remember { mutableIntStateOf(0) }
 
     if (showDatePicker) {
         val datePickerState = rememberDatePickerState()
@@ -82,6 +91,7 @@ fun ScheduleScreen() {
             text = { Text("确定要删除「${target.title}」吗？") },
             confirmButton = {
                 TextButton(onClick = {
+                    ctx.vibrateMedium()
                     vm.delete(target)
                     deleteTarget = null
                 }) { Text("删除", color = Danger) }
@@ -92,99 +102,110 @@ fun ScheduleScreen() {
         )
     }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-        contentPadding = PaddingValues(top = 24.dp, bottom = 24.dp)
-    ) {
-        item { Text("日程统筹", style = MaterialTheme.typography.displayMedium, color = Ink) }
-        item { Text("昨天没做完的，今天照样在这儿等你。", style = MaterialTheme.typography.bodyMedium, color = InkSoft) }
-        item { ScheduleMetrics(state) }
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            contentPadding = PaddingValues(top = 24.dp, bottom = 24.dp)
+        ) {
+            item { AnimatedHeader(title = "日程统筹", subtitle = "昨天没做完的，今天照样在这儿等你。") }
+            item { ScheduleMetrics(state) }
 
-        item {
-            LifeCard {
-                Text("添加日程", style = MaterialTheme.typography.titleMedium, color = Ink)
-                Spacer(Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = title, onValueChange = { title = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("要做什么") },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Clay, unfocusedBorderColor = Line)
-                )
-                Spacer(Modifier.height(8.dp))
-                Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp), Alignment.CenterVertically) {
-                    Box(modifier = Modifier.weight(1f).clickable { showDatePicker = true }) {
-                        OutlinedTextField(
-                            value = dateStr,
-                            onValueChange = { },
-                            modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("日期") },
-                            singleLine = true,
-                            enabled = false,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                disabledTextColor = Ink,
-                                disabledBorderColor = Line,
-                                disabledPlaceholderColor = InkSoft
+            item {
+                LifeCard {
+                    Text("添加日程", style = MaterialTheme.typography.titleMedium, color = Ink)
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = title, onValueChange = { title = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("要做什么") },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Clay, unfocusedBorderColor = Line)
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp), Alignment.CenterVertically) {
+                        Box(modifier = Modifier.weight(1f).clickable { showDatePicker = true }) {
+                            OutlinedTextField(
+                                value = dateStr,
+                                onValueChange = { },
+                                modifier = Modifier.fillMaxWidth(),
+                                placeholder = { Text("日期") },
+                                singleLine = true,
+                                enabled = false,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    disabledTextColor = Ink,
+                                    disabledBorderColor = Line,
+                                    disabledPlaceholderColor = InkSoft
+                                )
                             )
+                        }
+                        OutlinedTextField(
+                            value = timeStr, onValueChange = { timeStr = it },
+                            modifier = Modifier.weight(1f),
+                            placeholder = { Text("时间 HH:mm（可选）") },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Clay, unfocusedBorderColor = Line)
                         )
                     }
-                    OutlinedTextField(
-                        value = timeStr, onValueChange = { timeStr = it },
-                        modifier = Modifier.weight(1f),
-                        placeholder = { Text("时间 HH:mm（可选）") },
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Clay, unfocusedBorderColor = Line)
+                    Spacer(Modifier.height(8.dp))
+                    TagSelector(tag) { tag = it }
+                    Spacer(Modifier.height(8.dp))
+                    Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp), Alignment.CenterVertically) {
+                        OutlinedTextField(
+                            value = note, onValueChange = { note = it },
+                            modifier = Modifier.weight(1f),
+                            placeholder = { Text("备注（可选）") },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Clay, unfocusedBorderColor = Line)
+                        )
+                        PrioritySelector(priority) { priority = it }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    SuccessButton(
+                        text = "+ 添加",
+                        onClick = {
+                            if (title.isNotBlank()) {
+                                val due = runCatching {
+                                    SimpleDateFormat("yyyy-MM-dd", Locale.CHINA).parse(dateStr)?.time ?: 0L
+                                }.getOrDefault(0L)
+                                vm.add(title.trim(), due, priority, tag, timeStr.trim(), note.trim())
+                                title = ""; note = ""; timeStr = ""
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
-                Spacer(Modifier.height(8.dp))
-                TagSelector(tag) { tag = it }
-                Spacer(Modifier.height(8.dp))
-                Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp), Alignment.CenterVertically) {
-                    OutlinedTextField(
-                        value = note, onValueChange = { note = it },
-                        modifier = Modifier.weight(1f),
-                        placeholder = { Text("备注（可选）") },
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Clay, unfocusedBorderColor = Line)
-                    )
-                    PrioritySelector(priority) { priority = it }
+            }
+
+            item {
+                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                    Text("日程列表", style = MaterialTheme.typography.titleMedium, color = Ink)
+                    ScopeSegmented(scope) { vm.setScope(it) }
                 }
-                Spacer(Modifier.height(12.dp))
-                Button(
-                    onClick = {
-                        if (title.isNotBlank()) {
-                            val due = runCatching {
-                                SimpleDateFormat("yyyy-MM-dd", Locale.CHINA).parse(dateStr)?.time ?: 0L
-                            }.getOrDefault(0L)
-                            vm.add(title.trim(), due, priority, tag, timeStr.trim(), note.trim())
-                            title = ""; note = ""; timeStr = ""
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = Clay)
-                ) { Text("+ 添加", color = PaperCard) }
             }
-        }
 
-        item {
-            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                Text("日程列表", style = MaterialTheme.typography.titleMedium, color = Ink)
-                ScopeSegmented(scope) { vm.setScope(it) }
+            if (rows.isEmpty()) {
+                item { EmptyState("这个范围里没有日程") }
+            } else {
+                itemsIndexed(rows) { index, row ->
+                    ScheduleRowCard(
+                        row = row,
+                        modifier = Modifier.animateItemSlide(index),
+                        onToggle = { checked ->
+                            if (checked) {
+                                ctx.vibrateSuccess()
+                                confettiTrigger++
+                            } else {
+                                ctx.vibrateLight()
+                            }
+                            vm.toggle(row.item)
+                        },
+                        onDelete = { deleteTarget = row.item }
+                    )
+                }
             }
         }
-
-        if (rows.isEmpty()) {
-            item { EmptyState("这个范围里没有日程") }
-        } else {
-            items(rows) { row ->
-                ScheduleRowCard(
-                    row,
-                    onToggle = { vm.toggle(row.item) },
-                    onDelete = { deleteTarget = row.item }
-                )
-            }
-        }
+        ConfettiOverlay(trigger = confettiTrigger, modifier = Modifier.fillMaxSize())
     }
 }
 
@@ -218,7 +239,7 @@ private fun RowScope.Metric(label: String, value: String, unit: String, desc: St
             Text(label, style = MaterialTheme.typography.labelSmall, color = InkSoft)
             Spacer(Modifier.height(4.dp))
             Row(verticalAlignment = Alignment.Bottom) {
-                Text(value, style = MaterialTheme.typography.headlineMedium, color = color)
+                AnimatedNumber(value = value, color = color)
                 Spacer(Modifier.width(3.dp))
                 Text(unit, style = MaterialTheme.typography.labelSmall, color = InkSoft)
             }
@@ -286,6 +307,7 @@ private fun TagSelector(selected: String, onSelect: (String) -> Unit) {
 
 @Composable
 private fun ScopeSegmented(selected: PlanScope, onSelect: (PlanScope) -> Unit) {
+    val ctx = LocalContext.current
     val opts = listOf(
         PlanScope.TODAY to "今天/逾期",
         PlanScope.WEEK to "本周",
@@ -297,7 +319,10 @@ private fun ScopeSegmented(selected: PlanScope, onSelect: (PlanScope) -> Unit) {
             val on = s == selected
             Box(
                 Modifier
-                    .clickable { onSelect(s) }
+                    .clickable {
+                        ctx.vibrateLight()
+                        onSelect(s)
+                    }
                     .background(if (on) Ink else Color.Transparent)
                     .padding(horizontal = 10.dp, vertical = 6.dp),
                 contentAlignment = Alignment.Center
@@ -309,7 +334,12 @@ private fun ScopeSegmented(selected: PlanScope, onSelect: (PlanScope) -> Unit) {
 }
 
 @Composable
-private fun ScheduleRowCard(row: ScheduleRow, onToggle: () -> Unit, onDelete: () -> Unit) {
+private fun ScheduleRowCard(
+    row: ScheduleRow,
+    modifier: Modifier = Modifier,
+    onToggle: (Boolean) -> Unit,
+    onDelete: () -> Unit
+) {
     val item = row.item
     val priColor = when (item.priority) { "P0" -> Danger; "P1" -> Clay; else -> InkSoft }
     val tagColor = when (item.tag) {
@@ -321,7 +351,7 @@ private fun ScheduleRowCard(row: ScheduleRow, onToggle: () -> Unit, onDelete: ()
         else -> InkSoft
     }
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp),
         color = PaperCard
     ) {
@@ -331,7 +361,7 @@ private fun ScheduleRowCard(row: ScheduleRow, onToggle: () -> Unit, onDelete: ()
         ) {
             Checkbox(
                 checked = item.done,
-                onCheckedChange = { onToggle() },
+                onCheckedChange = { onToggle(it) },
                 colors = CheckboxDefaults.colors(checkedColor = Sage)
             )
             Spacer(Modifier.width(8.dp))
@@ -369,7 +399,7 @@ private fun ScheduleRowCard(row: ScheduleRow, onToggle: () -> Unit, onDelete: ()
                     }
                 }
             }
-            Text("×", modifier = Modifier.clickable { onDelete() }.padding(8.dp), style = MaterialTheme.typography.titleMedium, color = InkSoft)
+            Text("×", modifier = Modifier.hapticClick { onDelete() }.padding(8.dp), style = MaterialTheme.typography.titleMedium, color = InkSoft)
         }
     }
 }

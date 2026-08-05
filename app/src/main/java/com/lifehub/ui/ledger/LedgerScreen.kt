@@ -5,7 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
@@ -28,6 +28,7 @@ import com.lifehub.ui.theme.*
 import com.lifehub.util.fullTime
 import com.lifehub.util.money0
 import com.lifehub.util.money2
+import com.lifehub.util.vibrateLight
 import com.lifehub.viewmodel.LedgerFilter
 import com.lifehub.viewmodel.LedgerSummary
 import com.lifehub.viewmodel.LedgerViewModel
@@ -51,6 +52,7 @@ fun LedgerScreen() {
 
     var showSheet by remember { mutableStateOf(false) }
     var showBudgetDialog by remember { mutableStateOf(false) }
+    var confettiKey by remember { mutableIntStateOf(0) }
 
     if (showSheet) {
         AddLedgerSheet(
@@ -58,6 +60,7 @@ fun LedgerScreen() {
             onDismiss = { showSheet = false },
             onSave = { typeCode, cat, amt, note, rebateOf, date ->
                 vm.insert(typeCode, cat, amt, note, rebateOf, date)
+                confettiKey++
                 showSheet = false
             }
         )
@@ -73,46 +76,56 @@ fun LedgerScreen() {
                     app.container.settings.setBudget(budget)
                     app.container.settings.setNetRebate(netRebate)
                 }
+                confettiKey++
                 showBudgetDialog = false
             }
         )
     }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-        contentPadding = PaddingValues(top = 24.dp, bottom = 24.dp)
-    ) {
-        item { Text("记账理财", style = MaterialTheme.typography.displayMedium, color = Ink) }
-        item { SummaryCard(summary, onEditBudget = { showBudgetDialog = true }) }
-        item {
-            FilterBar(
-                all = all,
-                filter = filter,
-                onFilterChange = { vm.setFilter(it) }
-            )
-        }
-        if (summary.byCategory.isNotEmpty()) {
-            item { CategoryDonut(summary.byCategory) }
-        }
-        item { Text("明细", style = MaterialTheme.typography.titleMedium, color = Ink) }
-        items(filtered) { item ->
-            LedgerRow(item = item, color = categoryColor(fields, item), onDelete = { vm.delete(item) })
-        }
-        if (filtered.isEmpty()) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            contentPadding = PaddingValues(top = 24.dp, bottom = 24.dp)
+        ) {
+            item { AnimatedHeader("记账理财") }
+            item { SummaryCard(summary, onEditBudget = { showBudgetDialog = true }) }
             item {
-                EmptyState(if (all.isEmpty()) "还没有记账，点下方按钮开始" else "无匹配明细")
+                FilterBar(
+                    all = all,
+                    filter = filter,
+                    onFilterChange = { vm.setFilter(it) }
+                )
+            }
+            if (summary.byCategory.isNotEmpty()) {
+                item { CategoryDonut(summary.byCategory) }
+            }
+            item { Text("明细", style = MaterialTheme.typography.titleMedium, color = Ink) }
+            itemsIndexed(filtered) { index, item ->
+                LedgerRow(
+                    item = item,
+                    color = categoryColor(fields, item),
+                    onDelete = {
+                        vm.delete(item)
+                        confettiKey++
+                    },
+                    modifier = Modifier.animateItemSlide(index)
+                )
+            }
+            if (filtered.isEmpty()) {
+                item {
+                    EmptyState(if (all.isEmpty()) "还没有记账，点下方按钮开始" else "无匹配明细")
+                }
+            }
+            item {
+                SuccessButton(
+                    text = "+ 记一笔",
+                    onClick = { showSheet = true },
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
-        item {
-            Button(
-                onClick = { showSheet = true },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = Clay)
-            ) {
-                Text("+ 记一笔", color = PaperCard)
-            }
-        }
+        ConfettiOverlay(trigger = confettiKey)
     }
 }
 
@@ -143,7 +156,7 @@ private fun SummaryCard(s: LedgerSummary, onEditBudget: () -> Unit) {
             }
             Text(
                 "调整预算",
-                modifier = Modifier.clickable { onEditBudget() },
+                modifier = Modifier.hapticClick { onEditBudget() },
                 color = Clay,
                 style = MaterialTheme.typography.labelSmall
             )
@@ -196,11 +209,11 @@ private fun CategoryDonut(byCategory: List<Pair<String, Double>>) {
 }
 
 @Composable
-private fun LedgerRow(item: LedgerEntity, color: Color, onDelete: () -> Unit) {
+private fun LedgerRow(item: LedgerEntity, color: Color, onDelete: () -> Unit, modifier: Modifier = Modifier) {
     val sign = when (item.type) { "income" -> "+"; "rebate" -> "+"; else -> "-" }
     val colorForSign = when (item.type) { "income" -> Sage; "rebate" -> Amber; else -> Clay }
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         color = PaperCard,
         shape = RoundedCornerShape(8.dp)
     ) {
@@ -229,7 +242,7 @@ private fun LedgerRow(item: LedgerEntity, color: Color, onDelete: () -> Unit) {
             Spacer(Modifier.width(8.dp))
             Text(
                 "删除",
-                modifier = Modifier.clickable { onDelete() },
+                modifier = Modifier.hapticClick { onDelete() },
                 style = MaterialTheme.typography.labelMedium,
                 color = Danger
             )
@@ -274,7 +287,12 @@ private fun AddLedgerSheet(
             Text("分类", style = MaterialTheme.typography.labelMedium, color = InkSoft)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 cats.forEach { cat ->
-                    PillTag(cat.name, Color(AndroidColor.parseColor(cat.color)), selectedCat == cat.name) { selectedCat = cat.name }
+                    PillTag(
+                        cat.name,
+                        Color(AndroidColor.parseColor(cat.color)),
+                        selectedCat == cat.name,
+                        modifier = Modifier.pressScale { selectedCat = cat.name }
+                    ) { selectedCat = cat.name }
                 }
             }
             AmountStepper(amount) { amount = it }
@@ -297,7 +315,8 @@ private fun AddLedgerSheet(
                 placeholder = { Text("备注（可选）") },
                 colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Clay, unfocusedBorderColor = Line)
             )
-            Button(
+            SuccessButton(
+                text = "保存",
                 onClick = {
                     val amt = amount.toDoubleOrNull() ?: 0.0
                     val rebOf = rebateOf.toDoubleOrNull() ?: 0.0
@@ -309,9 +328,8 @@ private fun AddLedgerSheet(
                         onSave(code, selectedCat, amt, note, rebOf, date)
                     }
                 },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = Clay)
-            ) { Text("保存", color = PaperCard) }
+                modifier = Modifier.fillMaxWidth()
+            )
             Spacer(Modifier.height(8.dp))
         }
     }
@@ -352,13 +370,13 @@ private fun BudgetEditDialog(
             }
         },
         confirmButton = {
-            Button(
+            SuccessButton(
+                text = "保存",
                 onClick = {
                     val b = budgetText.toDoubleOrNull() ?: 0.0
                     onConfirm(b, netRebate)
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = Clay)
-            ) { Text("保存", color = PaperCard) }
+                }
+            )
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("取消", color = InkSoft) }
@@ -432,6 +450,7 @@ private fun FilterDropdown(
 ) {
     var expanded by remember { mutableStateOf(false) }
     val selectedLabel = options.firstOrNull { it.first == selected }?.second ?: label
+    val ctx = LocalContext.current
     Box(modifier = modifier) {
         Surface(
             modifier = Modifier.fillMaxWidth().clickable { expanded = true },
@@ -460,6 +479,7 @@ private fun FilterDropdown(
                 DropdownMenuItem(
                     text = { Text(lbl) },
                     onClick = {
+                        ctx.vibrateLight()
                         onSelect(value)
                         expanded = false
                     }

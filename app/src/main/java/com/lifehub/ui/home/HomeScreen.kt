@@ -1,10 +1,9 @@
 package com.lifehub.ui.home
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -18,9 +17,21 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lifehub.LifeHubApplication
 import com.lifehub.charts.RingProgress
 import com.lifehub.data.SettingsRepository
-import com.lifehub.ui.components.*
+import com.lifehub.ui.components.AnimatedHeader
+import com.lifehub.ui.components.AmountStepper
+import com.lifehub.ui.components.ConfettiOverlay
+import com.lifehub.ui.components.EmptyState
+import com.lifehub.ui.components.LifeCard
+import com.lifehub.ui.components.PillTag
+import com.lifehub.ui.components.SegmentedButton
+import com.lifehub.ui.components.SuccessButton
+import com.lifehub.ui.components.animateItemSlide
+import com.lifehub.ui.components.hapticClick
+import com.lifehub.ui.components.pressScale
 import com.lifehub.ui.theme.*
 import com.lifehub.util.money0
+import com.lifehub.util.vibrateLight
+import com.lifehub.util.vibrateSuccess
 import com.lifehub.util.yuan
 import com.lifehub.viewmodel.HomeItem
 import com.lifehub.viewmodel.HomeUiState
@@ -46,87 +57,92 @@ fun HomeScreen(
     var qlAmount by remember { mutableStateOf("") }
     var qlNote by remember { mutableStateOf("") }
     var qlRebateOf by remember { mutableStateOf("") }
+    var confettiKey by remember { mutableIntStateOf(0) }
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-        contentPadding = PaddingValues(top = 24.dp, bottom = 24.dp)
-    ) {
-        item {
-            // 顶部：标题 + 备份/恢复
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("今", style = MaterialTheme.typography.displayMedium, color = Ink)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = onExport) { Text("备份") }
-                    OutlinedButton(onClick = onImport) { Text("恢复") }
-                }
-            }
-        }
-
-        item { LifeIndexCard(state, vm) }
-
-        item {
-            Text("今天要处理", style = MaterialTheme.typography.titleMedium, color = Ink)
-        }
-
-        items(state.todayItems) { item ->
-            TodayRow(item, onClick = {
-                when (item.type) {
-                    "schedule" -> onNavigate("schedule")
-                    "habit" -> onNavigate("habit")
-                }
-            })
-        }
-        if (state.todayItems.isEmpty()) {
-            item { EmptyState("今天没有待处理的事项，真清爽") }
-        }
-
-        item {
-            Text("随手记一笔", style = MaterialTheme.typography.titleMedium, color = Ink)
-        }
-
-        item {
-            QuickLedgerCard(
-                type = qlType,
-                onTypeChange = { qlType = it },
-                amount = qlAmount,
-                onAmountChange = { qlAmount = it },
-                note = qlNote,
-                onNoteChange = { qlNote = it },
-                rebateOf = qlRebateOf,
-                onRebateOfChange = { qlRebateOf = it },
-                categories = when (qlType) {
-                    "支出" -> fields.expenseCats
-                    "收入" -> fields.incomeCats
-                    else -> fields.rebateCats
-                },
-                onSave = { cat ->
-                    val typeCode = when (qlType) { "支出" -> "expense"; "收入" -> "income"; else -> "rebate" }
-                    val amt = qlAmount.toDoubleOrNull() ?: 0.0
-                    val rebOf = qlRebateOf.toDoubleOrNull() ?: 0.0
-                    if (amt > 0) {
-                        scope.launch {
-                            app.container.ledger.insert(
-                                com.lifehub.data.entity.LedgerEntity(
-                                    type = typeCode, category = cat, amount = amt, note = qlNote,
-                                    rebateOf = rebOf,
-                                    date = System.currentTimeMillis()
-                                )
-                            )
-                            qlAmount = ""
-                            qlNote = ""
-                            qlRebateOf = ""
-                        }
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            contentPadding = PaddingValues(top = 24.dp, bottom = 24.dp)
+        ) {
+            item {
+                // 顶部：标题 + 备份/恢复
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    AnimatedHeader(title = "今")
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SuccessButton(text = "备份", onClick = onExport)
+                        SuccessButton(text = "恢复", onClick = onImport)
                     }
                 }
-            )
+            }
+
+            item { LifeIndexCard(state, vm) }
+
+            item {
+                Text("今天要处理", style = MaterialTheme.typography.titleMedium, color = Ink)
+            }
+
+            itemsIndexed(state.todayItems) { index, item ->
+                TodayRow(item = item, index = index, onClick = {
+                    when (item.type) {
+                        "schedule" -> onNavigate("schedule")
+                        "habit" -> onNavigate("habit")
+                    }
+                })
+            }
+            if (state.todayItems.isEmpty()) {
+                item { EmptyState("今天没有待处理的事项，真清爽") }
+            }
+
+            item {
+                Text("随手记一笔", style = MaterialTheme.typography.titleMedium, color = Ink)
+            }
+
+            item {
+                QuickLedgerCard(
+                    type = qlType,
+                    onTypeChange = { qlType = it },
+                    amount = qlAmount,
+                    onAmountChange = { qlAmount = it },
+                    note = qlNote,
+                    onNoteChange = { qlNote = it },
+                    rebateOf = qlRebateOf,
+                    onRebateOfChange = { qlRebateOf = it },
+                    categories = when (qlType) {
+                        "支出" -> fields.expenseCats
+                        "收入" -> fields.incomeCats
+                        else -> fields.rebateCats
+                    },
+                    onSave = { cat ->
+                        val typeCode = when (qlType) { "支出" -> "expense"; "收入" -> "income"; else -> "rebate" }
+                        val amt = qlAmount.toDoubleOrNull() ?: 0.0
+                        val rebOf = qlRebateOf.toDoubleOrNull() ?: 0.0
+                        if (amt > 0) {
+                            scope.launch {
+                                app.container.ledger.insert(
+                                    com.lifehub.data.entity.LedgerEntity(
+                                        type = typeCode, category = cat, amount = amt, note = qlNote,
+                                        rebateOf = rebOf,
+                                        date = System.currentTimeMillis()
+                                    )
+                                )
+                                qlAmount = ""
+                                qlNote = ""
+                                qlRebateOf = ""
+                                confettiKey++
+                            }
+                        }
+                    }
+                )
+            }
         }
+        ConfettiOverlay(trigger = confettiKey)
     }
 }
 
@@ -195,9 +211,12 @@ private fun DimMoney(label: String, value: String) {
 }
 
 @Composable
-private fun TodayRow(item: HomeItem, onClick: () -> Unit) {
+private fun TodayRow(item: HomeItem, index: Int, onClick: () -> Unit) {
     Surface(
-        modifier = Modifier.fillMaxWidth().clickable { onClick() },
+        modifier = Modifier
+            .fillMaxWidth()
+            .animateItemSlide(index)
+            .hapticClick { onClick() },
         color = Color.Transparent
     ) {
         Row(
@@ -230,6 +249,7 @@ private fun QuickLedgerCard(
     categories: List<SettingsRepository.CategoryDef>,
     onSave: (String) -> Unit
 ) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     var selectedCat by remember { mutableStateOf(categories.firstOrNull()?.name ?: "") }
 
     // 类型切换时重置选中分类
@@ -255,7 +275,11 @@ private fun QuickLedgerCard(
                     text = cat.name,
                     color = Color(android.graphics.Color.parseColor(cat.color)),
                     selected = selectedCat == cat.name,
-                    onClick = { selectedCat = cat.name }
+                    onClick = {
+                        ctx.vibrateLight()
+                        selectedCat = cat.name
+                    },
+                    modifier = Modifier.pressScale { selectedCat = cat.name }
                 )
             }
         }
@@ -290,12 +314,10 @@ private fun QuickLedgerCard(
             )
         )
         Spacer(Modifier.height(12.dp))
-        Button(
+        SuccessButton(
+            text = "记一笔",
             onClick = { onSave(selectedCat) },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = Clay)
-        ) {
-            Text("记一笔", color = PaperCard)
-        }
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }

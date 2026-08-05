@@ -5,7 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
@@ -22,17 +22,28 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lifehub.LifeHubApplication
 import com.lifehub.data.SettingsRepository
 import com.lifehub.data.entity.WishItemEntity
+import com.lifehub.ui.components.AnimatedHeader
+import com.lifehub.ui.components.AnimatedNumber
+import com.lifehub.ui.components.ConfettiOverlay
+import com.lifehub.ui.components.animateItemSlide
 import com.lifehub.ui.components.EmptyState
 import com.lifehub.ui.components.LifeCard
+import com.lifehub.ui.components.SuccessButton
+import com.lifehub.ui.components.hapticClick
+import com.lifehub.ui.components.toggleClick
 import com.lifehub.ui.theme.*
 import com.lifehub.util.money0
+import com.lifehub.util.vibrateLight
+import com.lifehub.util.vibrateSuccess
+import com.lifehub.util.vibrateTick
 import com.lifehub.viewmodel.BuyScope
 import com.lifehub.viewmodel.WishViewModel
 import com.lifehub.viewmodel.WishViewModelFactory
 
 @Composable
 fun WishlistScreen() {
-    val app = LocalContext.current.applicationContext as LifeHubApplication
+    val context = LocalContext.current
+    val app = context.applicationContext as LifeHubApplication
     val vm: WishViewModel = viewModel(factory = WishViewModelFactory(app))
     val state by vm.uiState.collectAsState()
     val scope by vm.scope.collectAsState()
@@ -43,84 +54,100 @@ fun WishlistScreen() {
     var price by remember { mutableStateOf("") }
     var priority by remember { mutableStateOf("P1") }
     var note by remember { mutableStateOf("") }
+    var confettiKey by remember { mutableIntStateOf(0) }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-        contentPadding = PaddingValues(top = 24.dp, bottom = 24.dp)
-    ) {
-        item {
-            Column {
-                Text("待买清单", style = MaterialTheme.typography.displayMedium, color = Ink)
-                Text("先记下来，过几天再看还想不想要。", style = MaterialTheme.typography.labelMedium, color = InkSoft)
-            }
-        }
-        item { WishMetrics(state) }
-
-        item {
-            LifeCard {
-                Text("加入清单", style = MaterialTheme.typography.titleMedium, color = Ink)
-                Spacer(Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = name, onValueChange = { name = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("想买什么") },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Clay, unfocusedBorderColor = Line)
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            contentPadding = PaddingValues(top = 24.dp, bottom = 24.dp)
+        ) {
+            item {
+                AnimatedHeader(
+                    title = "待买清单",
+                    subtitle = "先记下来，过几天再看还想不想要。"
                 )
-                Spacer(Modifier.height(8.dp))
-                Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp), Alignment.CenterVertically) {
+            }
+            item { WishMetrics(state) }
+
+            item {
+                LifeCard {
+                    Text("加入清单", style = MaterialTheme.typography.titleMedium, color = Ink)
+                    Spacer(Modifier.height(12.dp))
                     OutlinedTextField(
-                        value = price, onValueChange = { price = it },
-                        modifier = Modifier.weight(1f),
-                        placeholder = { Text("预估价格") },
+                        value = name, onValueChange = { name = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("想买什么") },
                         singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Clay, unfocusedBorderColor = Line)
                     )
-                    PrioritySelector(priority) { priority = it }
+                    Spacer(Modifier.height(8.dp))
+                    Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp), Alignment.CenterVertically) {
+                        OutlinedTextField(
+                            value = price, onValueChange = { price = it },
+                            modifier = Modifier.weight(1f),
+                            placeholder = { Text("预估价格") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Clay, unfocusedBorderColor = Line)
+                        )
+                        PrioritySelector(priority) { priority = it }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = note, onValueChange = { note = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("备注（可选）") },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Clay, unfocusedBorderColor = Line)
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    SuccessButton(
+                        text = "+ 添加",
+                        onClick = {
+                            if (name.isNotBlank()) {
+                                vm.add(name.trim(), price.toDoubleOrNull() ?: 0.0, priority, note.trim())
+                                name = ""; price = ""; note = ""
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = name.isNotBlank()
+                    )
                 }
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = note, onValueChange = { note = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("备注（可选）") },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Clay, unfocusedBorderColor = Line)
-                )
-                Spacer(Modifier.height(12.dp))
-                Button(
-                    onClick = {
-                        if (name.isNotBlank()) {
-                            vm.add(name.trim(), price.toDoubleOrNull() ?: 0.0, priority, note.trim())
-                            name = ""; price = ""; note = ""
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = Clay)
-                ) { Text("+ 添加", color = PaperCard) }
+            }
+
+            item {
+                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                    Text("清单", style = MaterialTheme.typography.titleMedium, color = Ink)
+                    ScopeSegmented(scope) { vm.setScope(it) }
+                }
+            }
+
+            if (rows.isEmpty()) {
+                item { EmptyState("清单是空的") }
+            } else {
+                itemsIndexed(rows) { index, item ->
+                    WishRow(
+                        item = item,
+                        onToggle = {
+                            if (!item.bought) {
+                                context.vibrateSuccess()
+                                confettiKey++
+                            }
+                            vm.toggle(item)
+                        },
+                        onDelete = { vm.delete(item) },
+                        onBoughtLedger = {
+                            context.vibrateSuccess()
+                            vm.markBoughtAndLedger(item, fields)
+                        },
+                        modifier = Modifier.animateItemSlide(index)
+                    )
+                }
             }
         }
 
-        item {
-            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                Text("清单", style = MaterialTheme.typography.titleMedium, color = Ink)
-                ScopeSegmented(scope) { vm.setScope(it) }
-            }
-        }
-
-        if (rows.isEmpty()) {
-            item { EmptyState("清单是空的") }
-        } else {
-            items(rows) { item ->
-                WishRow(
-                    item = item,
-                    onToggle = { vm.toggle(item) },
-                    onDelete = { vm.delete(item) },
-                    onBoughtLedger = { vm.markBoughtAndLedger(item, fields) }
-                )
-            }
-        }
+        ConfettiOverlay(trigger = confettiKey, modifier = Modifier.fillMaxSize())
     }
 }
 
@@ -150,7 +177,7 @@ private fun RowScope.Metric(label: String, value: String, unit: String, desc: St
             Text(label, style = MaterialTheme.typography.labelSmall, color = InkSoft)
             Spacer(Modifier.height(4.dp))
             Row(verticalAlignment = Alignment.Bottom) {
-                Text(value, style = MaterialTheme.typography.headlineMedium, color = color)
+                AnimatedNumber(value = value, color = color)
                 Spacer(Modifier.width(3.dp))
                 Text(unit, style = MaterialTheme.typography.labelSmall, color = InkSoft)
             }
@@ -162,6 +189,7 @@ private fun RowScope.Metric(label: String, value: String, unit: String, desc: St
 
 @Composable
 private fun PrioritySelector(selected: String, onSelect: (String) -> Unit) {
+    val ctx = LocalContext.current
     val pris = listOf("P0", "P1", "P2")
     val colors = mapOf("P0" to Danger, "P1" to Clay, "P2" to InkSoft)
     Row(Modifier.clip(RoundedCornerShape(8.dp)).border(1.dp, Line, RoundedCornerShape(8.dp))) {
@@ -169,7 +197,10 @@ private fun PrioritySelector(selected: String, onSelect: (String) -> Unit) {
             val on = p == selected
             Box(
                 Modifier
-                    .clickable { onSelect(p) }
+                    .clickable {
+                        ctx.vibrateTick()
+                        onSelect(p)
+                    }
                     .background(if (on) colors[p]!! else Color.Transparent)
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 contentAlignment = Alignment.Center
@@ -182,13 +213,17 @@ private fun PrioritySelector(selected: String, onSelect: (String) -> Unit) {
 
 @Composable
 private fun ScopeSegmented(selected: BuyScope, onSelect: (BuyScope) -> Unit) {
+    val ctx = LocalContext.current
     val opts = listOf(BuyScope.TODO to "待买", BuyScope.DONE to "已买", BuyScope.ALL to "全部")
     Row(Modifier.clip(RoundedCornerShape(8.dp)).border(1.dp, Line, RoundedCornerShape(8.dp))) {
         opts.forEach { (s, label) ->
             val on = s == selected
             Box(
                 Modifier
-                    .clickable { onSelect(s) }
+                    .clickable {
+                        ctx.vibrateLight()
+                        onSelect(s)
+                    }
                     .background(if (on) Ink else Color.Transparent)
                     .padding(horizontal = 12.dp, vertical = 6.dp),
                 contentAlignment = Alignment.Center
@@ -204,21 +239,23 @@ private fun WishRow(
     item: WishItemEntity,
     onToggle: () -> Unit,
     onDelete: () -> Unit,
-    onBoughtLedger: () -> Unit
+    onBoughtLedger: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val priColor = when (item.priority) { "P0" -> Danger; "P1" -> Clay; else -> InkSoft }
     val cal = remember(item.id) {
         java.util.Calendar.getInstance().apply { timeInMillis = item.createdAt }
     }
     val joinText = "${cal.get(java.util.Calendar.MONTH) + 1}月${cal.get(java.util.Calendar.DAY_OF_MONTH)}日 加入"
-    Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(8.dp), color = PaperCard) {
+    Surface(modifier = modifier.fillMaxWidth(), shape = RoundedCornerShape(8.dp), color = PaperCard) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp, horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Checkbox(
                 checked = item.bought,
-                onCheckedChange = { onToggle() },
+                onCheckedChange = null,
+                modifier = Modifier.toggleClick { onToggle() },
                 colors = CheckboxDefaults.colors(checkedColor = Sage)
             )
             Spacer(Modifier.width(8.dp))
@@ -240,11 +277,23 @@ private fun WishRow(
             Text("¥${money0(item.estPrice)}", style = MaterialTheme.typography.titleMedium, color = Ink)
             Spacer(Modifier.width(8.dp))
             if (!item.bought) {
-                OutlinedButton(onClick = onBoughtLedger, modifier = Modifier.padding(end = 4.dp)) {
+                val ctx = LocalContext.current
+                OutlinedButton(
+                    onClick = {
+                        ctx.vibrateSuccess()
+                        onBoughtLedger()
+                    },
+                    modifier = Modifier.padding(end = 4.dp)
+                ) {
                     Text("已买并记账", style = MaterialTheme.typography.labelSmall)
                 }
             }
-            Text("删除", modifier = Modifier.clickable { onDelete() }.padding(4.dp), style = MaterialTheme.typography.labelMedium, color = Danger)
+            Text(
+                "删除",
+                modifier = Modifier.hapticClick { onDelete() }.padding(4.dp),
+                style = MaterialTheme.typography.labelMedium,
+                color = Danger
+            )
         }
     }
 }

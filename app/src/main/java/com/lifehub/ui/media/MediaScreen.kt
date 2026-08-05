@@ -5,7 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -24,15 +24,28 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lifehub.LifeHubApplication
 import com.lifehub.charts.MonthBarChart
 import com.lifehub.data.entity.MediaItemEntity
+import com.lifehub.ui.components.AnimatedHeader
+import com.lifehub.ui.components.AnimatedNumber
+import com.lifehub.ui.components.ConfettiOverlay
+import com.lifehub.ui.components.animateItemSlide
 import com.lifehub.ui.components.EmptyState
 import com.lifehub.ui.components.LifeCard
+import com.lifehub.ui.components.SuccessButton
+import com.lifehub.ui.components.hapticClick
+import com.lifehub.ui.components.pressScale
+import com.lifehub.ui.components.toggleClick
 import com.lifehub.ui.theme.*
 import com.lifehub.util.cnDateKey
+import com.lifehub.util.vibrateLight
+import com.lifehub.util.vibrateMedium
+import com.lifehub.util.vibrateSuccess
+import com.lifehub.util.vibrateTick
 import com.lifehub.viewmodel.*
 
 @Composable
 fun MediaScreen() {
-    val app = LocalContext.current.applicationContext as LifeHubApplication
+    val context = LocalContext.current
+    val app = context.applicationContext as LifeHubApplication
     val vm: MediaViewModel = viewModel(factory = MediaViewModelFactory(app))
     val state by vm.uiState.collectAsState()
     val typeScope by vm.typeScope.collectAsState()
@@ -42,93 +55,110 @@ fun MediaScreen() {
 
     var showAdd by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<MediaItemEntity?>(null) }
+    var confettiKey by remember { mutableIntStateOf(0) }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-        contentPadding = PaddingValues(top = 24.dp, bottom = 24.dp)
-    ) {
-        item {
-            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                Column {
-                    Text("书影音收藏", style = MaterialTheme.typography.displayMedium, color = Ink)
-                    Text("看过听过的东西，值得留一句话。", style = MaterialTheme.typography.labelMedium, color = InkSoft)
-                }
-                FilledIconButton(
-                    onClick = { showAdd = true },
-                    modifier = Modifier.size(40.dp),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = IconButtonDefaults.filledIconButtonColors(containerColor = Clay)
-                ) { Text("+", color = PaperCard, style = MaterialTheme.typography.titleLarge) }
-            }
-        }
-
-        item { MediaMetrics(state) }
-
-        item {
-            LifeCard {
-                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.Bottom) {
-                    Column {
-                        Text("${todayYear()} 年完成分布", style = MaterialTheme.typography.titleMedium, color = Ink)
-                        Text("按完成月份统计", style = MaterialTheme.typography.labelSmall, color = InkSoft)
-                    }
-                    Text("共 ${state.monthBars.sum()} 条", style = MaterialTheme.typography.labelSmall, color = Clay)
-                }
-                Spacer(Modifier.height(10.dp))
-                MonthBarChart(values = state.monthBars, color = Clay)
-                Spacer(Modifier.height(6.dp))
-                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
-                    listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12").forEach {
-                        Text(it, style = MaterialTheme.typography.labelSmall, color = InkSoft, textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
-                    }
-                }
-            }
-        }
-
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SegmentedRow(
-                    options = MediaScope.values().map { it.label },
-                    keys = MediaScope.values().map { it.key },
-                    selected = typeScope.key,
-                    onSelect = { k -> vm.setTypeScope(MediaScope.values().first { it.key == k }) }
-                )
-                Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp)) {
-                    SegmentedRow(
-                        modifier = Modifier.weight(1f),
-                        options = MediaStatusScope.values().map { it.label },
-                        keys = MediaStatusScope.values().map { it.key },
-                        selected = statusScope.key,
-                        onSelect = { k -> vm.setStatusScope(MediaStatusScope.values().first { it.key == k }) }
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            contentPadding = PaddingValues(top = 24.dp, bottom = 24.dp)
+        ) {
+            item {
+                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                    AnimatedHeader(
+                        title = "书影音收藏",
+                        subtitle = "看过听过的东西，值得留一句话。"
                     )
+                    FilledIconButton(
+                        onClick = {
+                            context.vibrateSuccess()
+                            showAdd = true
+                        },
+                        modifier = Modifier.size(40.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = IconButtonDefaults.filledIconButtonColors(containerColor = Clay)
+                    ) { Text("+", color = PaperCard, style = MaterialTheme.typography.titleLarge) }
+
+                }
+            }
+
+            item { MediaMetrics(state) }
+
+            item {
+                LifeCard {
+                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.Bottom) {
+                        Column {
+                            Text("${todayYear()} 年完成分布", style = MaterialTheme.typography.titleMedium, color = Ink)
+                            Text("按完成月份统计", style = MaterialTheme.typography.labelSmall, color = InkSoft)
+                        }
+                        Text("共 ${state.monthBars.sum()} 条", style = MaterialTheme.typography.labelSmall, color = Clay)
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    MonthBarChart(values = state.monthBars, color = Clay)
+                    Spacer(Modifier.height(6.dp))
+                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
+                        listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12").forEach {
+                            Text(it, style = MaterialTheme.typography.labelSmall, color = InkSoft, textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
+                        }
+                    }
+                }
+            }
+
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     SegmentedRow(
-                        modifier = Modifier.weight(1f),
-                        options = MediaViewMode.values().map { it.label },
-                        keys = MediaViewMode.values().map { it.key },
-                        selected = viewMode.key,
-                        onSelect = { k -> vm.setViewMode(MediaViewMode.values().first { it.key == k }) }
+                        options = MediaScope.values().map { it.label },
+                        keys = MediaScope.values().map { it.key },
+                        selected = typeScope.key,
+                        onSelect = { k -> vm.setTypeScope(MediaScope.values().first { it.key == k }) }
+                    )
+                    Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp)) {
+                        SegmentedRow(
+                            modifier = Modifier.weight(1f),
+                            options = MediaStatusScope.values().map { it.label },
+                            keys = MediaStatusScope.values().map { it.key },
+                            selected = statusScope.key,
+                            onSelect = { k -> vm.setStatusScope(MediaStatusScope.values().first { it.key == k }) }
+                        )
+                        SegmentedRow(
+                            modifier = Modifier.weight(1f),
+                            options = MediaViewMode.values().map { it.label },
+                            keys = MediaViewMode.values().map { it.key },
+                            selected = viewMode.key,
+                            onSelect = { k -> vm.setViewMode(MediaViewMode.values().first { it.key == k }) }
+                        )
+                    }
+                }
+            }
+
+            if (list.isEmpty()) {
+                item { EmptyState("这里还是空的") }
+            } else if (viewMode == MediaViewMode.WALL) {
+                item {
+                    Text("收藏架 · ${list.size} 条", style = MaterialTheme.typography.titleMedium, color = Ink)
+                }
+                item {
+                    WallGrid(list) { editing = it }
+                }
+            } else {
+                item {
+                    Text("列表 · ${list.size} 条", style = MaterialTheme.typography.titleMedium, color = Ink)
+                }
+                itemsIndexed(list) { index, item ->
+                    MediaRow(
+                        item = item,
+                        onOpen = { editing = item },
+                        onDelete = {
+                            context.vibrateSuccess()
+                            vm.delete(item)
+                        },
+                        modifier = Modifier.animateItemSlide(index)
                     )
                 }
             }
         }
 
-        if (list.isEmpty()) {
-            item { EmptyState("这里还是空的") }
-        } else if (viewMode == MediaViewMode.WALL) {
-            item {
-                Text("收藏架 · ${list.size} 条", style = MaterialTheme.typography.titleMedium, color = Ink)
-            }
-            item {
-                WallGrid(list) { editing = it }
-            }
-        } else {
-            item {
-                Text("列表 · ${list.size} 条", style = MaterialTheme.typography.titleMedium, color = Ink)
-            }
-            items(list) { item ->
-                MediaRow(item, onOpen = { editing = item }, onDelete = { vm.delete(item) })
-            }
-        }
+        ConfettiOverlay(trigger = confettiKey, modifier = Modifier.fillMaxSize())
     }
 
     if (showAdd) {
@@ -137,6 +167,10 @@ fun MediaScreen() {
             onAdd = { type, title, author, status, rating, review ->
                 val color = defaultColorFor(type)
                 vm.add(type, title, author, status, rating, review, color)
+                if (status == "done" || rating > 0f) {
+                    context.vibrateSuccess()
+                    confettiKey++
+                }
                 showAdd = false
             }
         )
@@ -146,11 +180,29 @@ fun MediaScreen() {
         MediaEditDialog(
             item = item,
             onDismiss = { editing = null },
-            onStatus = { vm.setStatus(item, it); editing = item.copy(status = it) },
-            onRating = { vm.setRating(item, it); editing = item.copy(rating = it) },
+            onStatus = {
+                if (it == "done" && item.status != "done") {
+                    context.vibrateSuccess()
+                    confettiKey++
+                }
+                vm.setStatus(item, it)
+                editing = item.copy(status = it)
+            },
+            onRating = {
+                if (it > 0f && item.rating == 0f) {
+                    context.vibrateSuccess()
+                    confettiKey++
+                }
+                vm.setRating(item, it)
+                editing = item.copy(rating = it)
+            },
             onDate = { vm.setFinishDate(item, it); editing = item.copy(finishDate = it) },
             onReview = { vm.setReview(item, it); editing = item.copy(review = it) },
-            onDelete = { vm.delete(item); editing = null }
+            onDelete = {
+                context.vibrateSuccess()
+                vm.delete(item)
+                editing = null
+            }
         )
     }
 }
@@ -180,7 +232,7 @@ private fun RowScope.Metric(label: String, value: String, unit: String, desc: St
             Text(label, style = MaterialTheme.typography.labelSmall, color = InkSoft)
             Spacer(Modifier.height(4.dp))
             Row(verticalAlignment = Alignment.Bottom) {
-                Text(value, style = MaterialTheme.typography.headlineMedium, color = color)
+                AnimatedNumber(value = value, color = color)
                 Spacer(Modifier.width(3.dp))
                 Text(unit, style = MaterialTheme.typography.labelSmall, color = InkSoft)
             }
@@ -198,6 +250,7 @@ private fun SegmentedRow(
     onSelect: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val ctx = LocalContext.current
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -211,7 +264,10 @@ private fun SegmentedRow(
                     .weight(1f)
                     .clip(RoundedCornerShape(8.dp))
                     .background(if (on) Ink else Color.Transparent)
-                    .clickable { onSelect(keys[i]) }
+                    .clickable {
+                        ctx.vibrateLight()
+                        onSelect(keys[i])
+                    }
                     .padding(vertical = 8.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -249,7 +305,7 @@ private fun CoverCard(item: MediaItemEntity, onOpen: (MediaItemEntity) -> Unit) 
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
-            .clickable { onOpen(item) }
+            .pressScale { onOpen(item) }
     ) {
         Box(
             modifier = Modifier
@@ -284,11 +340,16 @@ private fun CoverCard(item: MediaItemEntity, onOpen: (MediaItemEntity) -> Unit) 
 }
 
 @Composable
-private fun MediaRow(item: MediaItemEntity, onOpen: (MediaItemEntity) -> Unit, onDelete: () -> Unit) {
+private fun MediaRow(
+    item: MediaItemEntity,
+    onOpen: (MediaItemEntity) -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     val color = parseColor(item.color, Clay)
     var showDeleteConfirm by remember { mutableStateOf(false) }
     Surface(
-        modifier = Modifier.fillMaxWidth().clickable { onOpen(item) },
+        modifier = modifier.fillMaxWidth().clickable { onOpen(item) },
         shape = RoundedCornerShape(8.dp),
         color = PaperCard
     ) {
@@ -311,7 +372,13 @@ private fun MediaRow(item: MediaItemEntity, onOpen: (MediaItemEntity) -> Unit, o
                     if (item.review.isNotBlank()) Text(item.review, style = MaterialTheme.typography.labelSmall, color = InkSoft, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                 }
             }
-            TextButton(onClick = { showDeleteConfirm = true }) {
+            val ctx = LocalContext.current
+            TextButton(
+                onClick = {
+                    ctx.vibrateMedium()
+                    showDeleteConfirm = true
+                }
+            ) {
                 Text("删除", style = MaterialTheme.typography.labelSmall, color = Danger)
             }
         }
@@ -357,9 +424,13 @@ private fun MediaAddDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
-            TextButton(onClick = {
-                if (title.isNotBlank()) onAdd(type, title, author, status, rating, review)
-            }) { Text("添加", color = Clay) }
+            SuccessButton(
+                text = "添加",
+                onClick = {
+                    if (title.isNotBlank()) onAdd(type, title, author, status, rating, review)
+                },
+                enabled = title.isNotBlank()
+            )
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消", color = InkSoft) } },
         title = { Text("添加一条", color = Ink) },
@@ -423,7 +494,7 @@ private fun MediaEditDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        confirmButton = { TextButton(onClick = onDismiss) { Text("完成", color = Clay) } },
+        confirmButton = { SuccessButton(onClick = onDismiss, text = "完成") },
         dismissButton = {
             TextButton(onClick = { showDeleteConfirm = true }) { Text("删除", color = Danger) }
         },
@@ -521,7 +592,7 @@ private fun StarPicker(value: Float, onPick: (Float) -> Unit) {
                 "★",
                 color = if (on) Amber else Line,
                 fontSize = 22.sp,
-                modifier = Modifier.clickable { onPick(if (i == value.toInt()) 0f else i.toFloat()) }.padding(horizontal = 2.dp)
+                modifier = Modifier.toggleClick { onPick(if (i == value.toInt()) 0f else i.toFloat()) }.padding(horizontal = 2.dp)
             )
         }
     }

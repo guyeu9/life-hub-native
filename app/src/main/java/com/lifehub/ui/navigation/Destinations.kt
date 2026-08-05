@@ -8,12 +8,14 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.lifehub.ui.theme.Clay
 import com.lifehub.ui.theme.InkSoft
 import com.lifehub.ui.theme.PaperCard
+import com.lifehub.util.vibrateLight
 
 /**
  * 七个模块的导航定义
@@ -43,6 +45,7 @@ fun LifeHubBottomBar(
 ) {
     val backStackEntry = navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry.value?.destination?.route
+    val ctx = LocalContext.current
 
     NavigationBar(
         containerColor = PaperCard,
@@ -53,6 +56,7 @@ fun LifeHubBottomBar(
             NavigationBarItem(
                 selected = selected,
                 onClick = {
+                    ctx.vibrateLight()
                     navController.navigate(dest.route) {
                         popUpTo(navController.graph.findStartDestination().id) {
                             saveState = true

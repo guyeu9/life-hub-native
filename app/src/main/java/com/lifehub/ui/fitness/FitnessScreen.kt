@@ -5,7 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
@@ -22,14 +22,25 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lifehub.LifeHubApplication
 import com.lifehub.charts.LineChart
+import com.lifehub.data.SettingsRepository
 import com.lifehub.data.entity.FitnessEntity
 import com.lifehub.data.entity.FitnessPlanEntity
-import com.lifehub.data.SettingsRepository
+import com.lifehub.ui.components.AnimatedHeader
+import com.lifehub.ui.components.AnimatedNumber
+import com.lifehub.ui.components.ConfettiOverlay
 import com.lifehub.ui.components.EmptyState
 import com.lifehub.ui.components.LifeCard
+import com.lifehub.ui.components.SuccessButton
+import com.lifehub.ui.components.animateItemSlide
+import com.lifehub.ui.components.hapticClick
+import com.lifehub.ui.components.toggleClick
 import com.lifehub.ui.theme.*
 import com.lifehub.util.cnDateKey
 import com.lifehub.util.todayKey
+import com.lifehub.util.vibrateLight
+import com.lifehub.util.vibrateMedium
+import com.lifehub.util.vibrateSuccess
+import com.lifehub.util.vibrateTick
 import com.lifehub.viewmodel.FitnessUiState
 import com.lifehub.viewmodel.FitnessViewModel
 import com.lifehub.viewmodel.FitnessViewModelFactory
@@ -38,80 +49,127 @@ import kotlin.math.min
 
 @Composable
 fun FitnessScreen() {
-    val app = LocalContext.current.applicationContext as LifeHubApplication
+    val context = LocalContext.current
+    val app = context.applicationContext as LifeHubApplication
     val vm: FitnessViewModel = viewModel(factory = FitnessViewModelFactory(app))
     val state by vm.uiState.collectAsState()
 
     var showProfile by remember { mutableStateOf(false) }
     var editingPlan by remember { mutableStateOf<Int?>(null) }
+    var confettiKey by remember { mutableIntStateOf(0) }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-        contentPadding = PaddingValues(top = 24.dp, bottom = 24.dp)
-    ) {
-        item {
-            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                Text("减脂健身", style = MaterialTheme.typography.displayMedium, color = Ink)
-                OutlinedButton(onClick = { showProfile = true }) { Text("身高/目标/基代") }
-            }
-        }
-
-        item { FitnessMetrics(state) }
-        item { GoalProgress(state) }
-
-        if (state.logs.isNotEmpty()) {
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            contentPadding = PaddingValues(top = 24.dp, bottom = 24.dp)
+        ) {
             item {
-                LifeCard {
-                    Text("体重曲线", style = MaterialTheme.typography.titleMedium, color = Ink)
-                    Spacer(Modifier.height(8.dp))
-                    LineChart(points = state.logs.map { it.weight.toFloat() })
-                    Spacer(Modifier.height(6.dp))
-                    Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(16.dp)) {
-                        LegendDot(Slate, "每日实测")
-                        LegendDot(Clay, "7 日均线")
+                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                    AnimatedHeader("减脂健身")
+                    OutlinedButton(
+                        onClick = {
+                            context.vibrateLight()
+                            showProfile = true
+                        }
+                    ) { Text("身高/目标/基代") }
+                }
+            }
+
+            item { FitnessMetrics(state) }
+            item { GoalProgress(state) }
+
+            if (state.logs.isNotEmpty()) {
+                item {
+                    LifeCard {
+                        Text("体重曲线", style = MaterialTheme.typography.titleMedium, color = Ink)
+                        Spacer(Modifier.height(8.dp))
+                        LineChart(points = state.logs.map { it.weight.toFloat() })
+                        Spacer(Modifier.height(6.dp))
+                        Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(16.dp)) {
+                            LegendDot(Slate, "每日实测")
+                            LegendDot(Clay, "7 日均线")
+                        }
                     }
+                }
+            }
+
+            item {
+                AddLogForm(
+                    onSave = { w, f, i, b ->
+                        context.vibrateSuccess()
+                        confettiKey++
+                        vm.saveLog(todayKey(), w, f, i, b, "")
+                    }
+                )
+            }
+
+            item {
+                Text("本周训练计划", style = MaterialTheme.typography.titleMedium, color = Ink)
+                Spacer(Modifier.height(8.dp))
+            }
+            item {
+                WeekPlan(
+                    plan = state.plan,
+                    todayIdx = todayPlanIdx(),
+                    onToggle = { idx, checked ->
+                        if (checked) {
+                            context.vibrateSuccess()
+                            confettiKey++
+                        } else {
+                            context.vibrateTick()
+                        }
+                        vm.togglePlanDone(idx)
+                    },
+                    onEdit = { editingPlan = it }
+                )
+            }
+
+            item {
+                Text("历史记录", style = MaterialTheme.typography.titleMedium, color = Ink)
+                Spacer(Modifier.height(8.dp))
+            }
+            if (state.logs.isEmpty()) {
+                item { EmptyState("还没有身体数据，先在上面记一条") }
+            } else {
+                itemsIndexed(state.logs.asReversed().take(20)) { index, log ->
+                    HistoryRow(
+                        log = log,
+                        tdee = state.profile.tdee,
+                        onDelete = {
+                            context.vibrateMedium()
+                            vm.deleteLog(log)
+                        },
+                        modifier = Modifier.animateItemSlide(index)
+                    )
                 }
             }
         }
 
-        item { AddLogForm(onSave = { w, f, i, b -> vm.saveLog(todayKey(), w, f, i, b, "") }) }
-
-        item {
-            Text("本周训练计划", style = MaterialTheme.typography.titleMedium, color = Ink)
-            Spacer(Modifier.height(8.dp))
-            WeekPlan(
-                plan = state.plan,
-                todayIdx = todayPlanIdx(),
-                onToggle = { vm.togglePlanDone(it) },
-                onEdit = { editingPlan = it }
-            )
-        }
-
-        item {
-            Text("历史记录", style = MaterialTheme.typography.titleMedium, color = Ink)
-            Spacer(Modifier.height(8.dp))
-        }
-        if (state.logs.isEmpty()) {
-            item { EmptyState("还没有身体数据，先在上面记一条") }
-        } else {
-            items(state.logs.asReversed().take(20)) { log ->
-                HistoryRow(log, state.profile.tdee, onDelete = { vm.deleteLog(log) })
-            }
-        }
+        ConfettiOverlay(trigger = confettiKey, modifier = Modifier.fillMaxSize())
     }
 
     if (showProfile) {
-        ProfileSheet(state.profile, onDismiss = { showProfile = false }, onSave = {
-            vm.updateProfile(it); showProfile = false
-        })
+        ProfileSheet(
+            state.profile,
+            onDismiss = { showProfile = false },
+            onSave = {
+                context.vibrateSuccess()
+                vm.updateProfile(it); showProfile = false
+            }
+        )
     }
     editingPlan?.let { idx ->
         val cur = state.plan.firstOrNull { it.dayIndex == idx }
         if (cur != null) {
-            EditPlanSheet(cur, onDismiss = { editingPlan = null }, onSave = { t, d ->
-                vm.editPlan(idx, t, d); editingPlan = null
-            })
+            EditPlanSheet(
+                cur,
+                onDismiss = { editingPlan = null },
+                onSave = { t, d ->
+                    context.vibrateSuccess()
+                    vm.editPlan(idx, t, d); editingPlan = null
+                }
+            )
         }
     }
 }
@@ -170,7 +228,7 @@ private fun RowScope.MetricCell(label: String, value: String, unit: String, desc
             Text(label, style = MaterialTheme.typography.labelSmall, color = InkSoft)
             Spacer(Modifier.height(4.dp))
             Row(verticalAlignment = Alignment.Bottom) {
-                Text(value, style = MaterialTheme.typography.headlineMedium, color = color)
+                AnimatedNumber(value = value, color = color)
                 if (unit.isNotEmpty()) {
                     Spacer(Modifier.width(3.dp))
                     Text(unit, style = MaterialTheme.typography.labelSmall, color = InkSoft)
@@ -213,6 +271,7 @@ private fun AddLogForm(onSave: (weight: Double, fat: Double, intake: Double, bur
     var fat by remember { mutableStateOf("") }
     var intake by remember { mutableStateOf("") }
     var burn by remember { mutableStateOf("") }
+    val ctx = LocalContext.current
     LifeCard {
         Text("记录今天的身体数据", style = MaterialTheme.typography.titleMedium, color = Ink)
         Spacer(Modifier.height(4.dp))
@@ -228,7 +287,8 @@ private fun AddLogForm(onSave: (weight: Double, fat: Double, intake: Double, bur
             NumField("运动 kcal", burn, { burn = it }, Modifier.weight(1f))
         }
         Spacer(Modifier.height(12.dp))
-        Button(
+        SuccessButton(
+            text = "保存",
             onClick = {
                 val w = weight.toDoubleOrNull() ?: 0.0
                 if (w > 0) {
@@ -236,9 +296,8 @@ private fun AddLogForm(onSave: (weight: Double, fat: Double, intake: Double, bur
                     weight = ""; fat = ""; intake = ""; burn = ""
                 }
             },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = Clay)
-        ) { Text("保存", color = PaperCard) }
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 
@@ -261,14 +320,15 @@ private fun NumField(label: String, value: String, onChange: (String) -> Unit, m
 private fun WeekPlan(
     plan: List<FitnessPlanEntity>,
     todayIdx: Int,
-    onToggle: (Int) -> Unit,
+    onToggle: (Int, Boolean) -> Unit,
     onEdit: (Int) -> Unit
 ) {
+    val ctx = LocalContext.current
     val names = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         plan.forEachIndexed { i, d ->
             Surface(
-                modifier = Modifier.fillMaxWidth().clickable { onToggle(i) },
+                modifier = Modifier.fillMaxWidth().toggleClick { onToggle(i, !d.done) },
                 shape = RoundedCornerShape(8.dp),
                 color = if (i == todayIdx) ClayLight.copy(alpha = 0.18f) else PaperCard,
                 border = androidx.compose.foundation.BorderStroke(1.dp, if (i == todayIdx) Clay else Line)
@@ -277,7 +337,12 @@ private fun WeekPlan(
                     modifier = Modifier.fillMaxWidth().padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Checkbox(checked = d.done, onCheckedChange = { onToggle(i) }, colors = CheckboxDefaults.colors(checkedColor = Sage))
+                    Checkbox(
+                        checked = d.done,
+                        onCheckedChange = null,
+                        modifier = Modifier.toggleClick { onToggle(i, !d.done) },
+                        colors = CheckboxDefaults.colors(checkedColor = Sage)
+                    )
                     Spacer(Modifier.width(8.dp))
                     Column(Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -287,7 +352,12 @@ private fun WeekPlan(
                         Text(d.title.ifBlank { "待安排" }, style = MaterialTheme.typography.bodyMedium, color = Ink)
                         if (d.detail.isNotBlank()) Text(d.detail, style = MaterialTheme.typography.labelSmall, color = InkSoft)
                     }
-                    OutlinedButton(onClick = { onEdit(i) }) { Text("改") }
+                    OutlinedButton(
+                        onClick = {
+                            ctx.vibrateLight()
+                            onEdit(i)
+                        }
+                    ) { Text("改") }
                 }
             }
         }
@@ -295,9 +365,18 @@ private fun WeekPlan(
 }
 
 @Composable
-private fun HistoryRow(log: FitnessEntity, tdee: Double, onDelete: () -> Unit) {
+private fun HistoryRow(
+    log: FitnessEntity,
+    tdee: Double,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     val def = (tdee + log.burn - log.intake).toInt()
-    Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(8.dp), color = PaperCard) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        color = PaperCard
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp, horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -321,7 +400,11 @@ private fun HistoryRow(log: FitnessEntity, tdee: Double, onDelete: () -> Unit) {
                     }
                 }
             }
-            Text("🗑", modifier = Modifier.clickable { onDelete() }.padding(4.dp), style = MaterialTheme.typography.labelMedium)
+            Text(
+                "🗑",
+                modifier = Modifier.hapticClick { onDelete() }.padding(4.dp),
+                style = MaterialTheme.typography.labelMedium
+            )
         }
     }
 }
@@ -342,6 +425,7 @@ private fun ProfileSheet(profile: SettingsRepository.FitnessProfile, onDismiss: 
     var start by remember { mutableStateOf(if (profile.startWeight > 0) profile.startWeight.toString() else "") }
     var target by remember { mutableStateOf(profile.targetWeight.toString()) }
     var tdee by remember { mutableStateOf(profile.tdee.toString()) }
+    val ctx = LocalContext.current
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("身高 / 目标 / 基代", style = MaterialTheme.typography.headlineMedium, color = Ink)
@@ -349,7 +433,8 @@ private fun ProfileSheet(profile: SettingsRepository.FitnessProfile, onDismiss: 
             NumField("起点体重 kg（留空取首条）", start, { start = it })
             NumField("目标体重 kg", target, { target = it })
             NumField("基础代谢 TDEE kcal", tdee, { tdee = it })
-            Button(
+            SuccessButton(
+                text = "保存",
                 onClick = {
                     onSave(
                         SettingsRepository.FitnessProfile(
@@ -360,9 +445,8 @@ private fun ProfileSheet(profile: SettingsRepository.FitnessProfile, onDismiss: 
                         )
                     )
                 },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = Clay)
-            ) { Text("保存", color = PaperCard) }
+                modifier = Modifier.fillMaxWidth()
+            )
             Spacer(Modifier.height(8.dp))
         }
     }
@@ -373,6 +457,7 @@ private fun ProfileSheet(profile: SettingsRepository.FitnessProfile, onDismiss: 
 private fun EditPlanSheet(cur: FitnessPlanEntity, onDismiss: () -> Unit, onSave: (String, String) -> Unit) {
     var title by remember { mutableStateOf(cur.title) }
     var detail by remember { mutableStateOf(cur.detail) }
+    val ctx = LocalContext.current
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("编辑训练计划", style = MaterialTheme.typography.headlineMedium, color = Ink)
@@ -389,11 +474,11 @@ private fun EditPlanSheet(cur: FitnessPlanEntity, onDismiss: () -> Unit, onSave:
                 minLines = 2,
                 colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Clay, unfocusedBorderColor = Line)
             )
-            Button(
+            SuccessButton(
+                text = "保存",
                 onClick = { onSave(title, detail) },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = Clay)
-            ) { Text("保存", color = PaperCard) }
+                modifier = Modifier.fillMaxWidth()
+            )
             Spacer(Modifier.height(8.dp))
         }
     }
