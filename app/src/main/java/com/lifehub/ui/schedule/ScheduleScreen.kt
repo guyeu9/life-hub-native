@@ -23,12 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lifehub.LifeHubApplication
 import com.lifehub.data.entity.ScheduleEntity
-import com.lifehub.ui.components.AnimatedHeader
-import com.lifehub.ui.components.AnimatedNumber
-import com.lifehub.ui.components.ConfettiOverlay
-import com.lifehub.ui.components.EmptyState
-import com.lifehub.ui.components.LifeCard
-import com.lifehub.ui.components.animateItemSlide
+import com.lifehub.ui.components.*
 import com.lifehub.ui.theme.*
 import com.lifehub.util.cnDateKey
 import com.lifehub.util.dateKey
