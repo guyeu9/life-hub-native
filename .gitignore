@@ -10,10 +10,12 @@ app/build/
 # 本地配置
 local.properties
 
-# 签名密钥（绝不提交）
+# 签名密钥（本项目将 lifehub.keystore 提交到仓库以简化 CI 配置）
 *.jks
 *.keystore
 keystore.properties
+# 允许本项目使用的签名密钥库
+!app/lifehub.keystore
 
 # IDE
 .idea/
