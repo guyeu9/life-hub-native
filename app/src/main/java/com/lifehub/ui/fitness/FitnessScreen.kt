@@ -270,7 +270,7 @@ private fun GoalProgress(state: FitnessUiState) {
         }
         Spacer(Modifier.height(8.dp))
         LinearProgressIndicator(
-            progress = prog.toFloat(),
+            progress = { prog.toFloat() },
             modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
             color = Clay,
             trackColor = Line

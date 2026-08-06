@@ -315,7 +315,7 @@ private fun DimRow(label: String, value: String, progress: Float, color: Color) 
         }
         Spacer(Modifier.height(4.dp))
         LinearProgressIndicator(
-            progress = progress,
+            progress = { progress },
             modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
             color = color,
             trackColor = Line
