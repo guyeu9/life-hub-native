@@ -161,8 +161,8 @@ private fun LifeHubTopBar(
             }
         },
         colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = Paper,
-            scrolledContainerColor = Paper
+            containerColor = PaperBg,
+            scrolledContainerColor = PaperBg
         )
     )
 }

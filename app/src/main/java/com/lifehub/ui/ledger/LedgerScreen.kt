@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
@@ -163,7 +164,7 @@ fun LedgerScreen() {
             itemsIndexed(filtered) { index, item ->
                 LedgerRow(
                     item = item,
-                    fields = fields,
+                    color = categoryColor(fields, item),
                     onDelete = {
                         vm.delete(item)
                         confettiKey++
