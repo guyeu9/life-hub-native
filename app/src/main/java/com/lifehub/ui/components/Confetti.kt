@@ -17,23 +17,32 @@ import kotlin.random.Random
 
 /**
  * 撒花粒子效果，用于记录/完成等正向反馈。
- * 触发条件：外部传入 key 变化时自动播放一次。
+ * 触发条件：外部传入 trigger 变化时播放；首次组合不触发。
  */
 @Composable
 fun ConfettiOverlay(
     trigger: Any,
     modifier: Modifier = Modifier,
-    colors: List<Color> = listOf(Clay, Sage, Amber, Slate, ClayLight, SageLight)
+    colors: List<Color> = listOf(Clay, Sage, Amber, Slate, ClayLight, SageLight, Danger, Gold)
 ) {
+    val duration = 2800
     var active by remember { mutableStateOf(false) }
     var particles by remember { mutableStateOf(emptyList<Particle>()) }
+    var prev by remember { mutableStateOf<Any?>(null) }
 
     val density = LocalDensity.current
 
     LaunchedEffect(trigger) {
+        // 首次组合 prev 为 null，不触发；之后 trigger 变化才触发
+        if (prev == null) {
+            prev = trigger
+            return@LaunchedEffect
+        }
+        if (trigger == prev) return@LaunchedEffect
+        prev = trigger
         active = true
-        particles = List(40) { Particle.random(colors) }
-        delay(2200)
+        particles = List(90) { Particle.random(colors) }
+        delay(duration.toLong())
         active = false
         particles = emptyList()
     }
@@ -49,7 +58,7 @@ fun ConfettiOverlay(
             initialValue = 0f,
             targetValue = 1f,
             animationSpec = infiniteRepeatable(
-                animation = tween(2200, easing = LinearEasing),
+                animation = tween(duration, easing = LinearEasing),
                 repeatMode = RepeatMode.Restart
             ),
             label = "progress"
@@ -57,16 +66,30 @@ fun ConfettiOverlay(
 
         Canvas(modifier = Modifier.fillMaxSize()) {
             particles.forEach { p ->
-                val t = (progress * 2200 + p.delay) / 2200f
+                val t = (progress * duration + p.delay) / duration.toFloat()
                 if (t <= 0f || t >= 1f) return@forEach
-                val x = p.startX * widthPx + p.vx * t * widthPx + sin(t * p.wobbleFreq + p.phase) * 30f
-                val y = p.startY * heightPx + p.vy * t * heightPx + 0.5f * 800f * t * t
+                val x = p.startX * widthPx + p.vx * t * widthPx + sin(t * p.wobbleFreq + p.phase) * 50f
+                val y = p.startY * heightPx + p.vy * t * heightPx + 0.5f * 900f * t * t
                 val rotation = p.rotation + p.rotationSpeed * t * 360f
-                val alpha = if (t < 0.2f) t * 5f else (1f - t).coerceAtLeast(0f)
-                drawCircle(
+                val alpha = if (t < 0.15f) t / 0.15f else (1f - t).coerceAtLeast(0f)
+                // 用旋转的小矩形模拟纸屑，比圆点更明显
+                val rad = Math.toRadians(rotation.toDouble())
+                val hw = p.size * 0.9f
+                val hh = p.size * 0.4f
+                val center = Offset(x.coerceIn(0f, widthPx), y.coerceIn(0f, heightPx))
+                val p1 = Offset(center.x + (cos(rad) * hw - sin(rad) * hh).toFloat(), center.y + (sin(rad) * hw + cos(rad) * hh).toFloat())
+                val p2 = Offset(center.x + (-cos(rad) * hw - sin(rad) * hh).toFloat(), center.y + (-sin(rad) * hw + cos(rad) * hh).toFloat())
+                val p3 = Offset(center.x + (-cos(rad) * hw + sin(rad) * hh).toFloat(), center.y + (-sin(rad) * hw - cos(rad) * hh).toFloat())
+                val p4 = Offset(center.x + (cos(rad) * hw + sin(rad) * hh).toFloat(), center.y + (sin(rad) * hw - cos(rad) * hh).toFloat())
+                drawPath(
+                    path = androidx.compose.ui.graphics.Path().apply {
+                        moveTo(p1.x, p1.y)
+                        lineTo(p2.x, p2.y)
+                        lineTo(p3.x, p3.y)
+                        lineTo(p4.x, p4.y)
+                        close()
+                    },
                     color = p.color.copy(alpha = alpha),
-                    radius = p.size,
-                    center = Offset(x.coerceIn(0f, widthPx), y.coerceIn(0f, heightPx)),
                     alpha = alpha
                 )
             }
@@ -89,19 +112,19 @@ private data class Particle(
 ) {
     companion object {
         fun random(colors: List<Color>): Particle {
-            val startY = Random.nextFloat() * 0.3f + 0.1f
+            val startY = Random.nextFloat() * 0.25f + 0.05f
             return Particle(
                 color = colors.random(),
-                size = Random.nextFloat() * 6f + 4f,
+                size = Random.nextFloat() * 8f + 6f,
                 startX = Random.nextFloat() * 0.6f + 0.2f,
                 startY = startY,
-                vx = (Random.nextFloat() - 0.5f) * 1.2f,
-                vy = Random.nextFloat() * -0.6f - 0.2f,
-                wobbleFreq = Random.nextFloat() * 6f + 2f,
+                vx = (Random.nextFloat() - 0.5f) * 1.8f,
+                vy = Random.nextFloat() * -0.8f - 0.3f,
+                wobbleFreq = Random.nextFloat() * 8f + 3f,
                 phase = Random.nextFloat() * 6.28f,
                 rotation = Random.nextFloat() * 360f,
-                rotationSpeed = (Random.nextFloat() - 0.5f) * 4f,
-                delay = Random.nextFloat() * 400f
+                rotationSpeed = (Random.nextFloat() - 0.5f) * 6f,
+                delay = Random.nextFloat() * 500f
             )
         }
     }

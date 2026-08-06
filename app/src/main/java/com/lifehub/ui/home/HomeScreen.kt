@@ -12,8 +12,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -153,60 +153,60 @@ fun HomeScreen(
                 )
             }
 
-            // 今天要处理
+            // 今天要处理（带卡片边框，对齐网页 .today-block）
             item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Brush.horizontalGradient(listOf(Clay.copy(alpha = 0.07f), Color.Transparent))),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.Today,
-                            contentDescription = null,
-                            tint = Clay,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(Modifier.width(6.dp))
+                LifeCard {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.AccessTime,
+                                contentDescription = null,
+                                tint = Clay,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "今天要处理",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = Ink
+                            )
+                        }
                         Text(
-                            text = "今天要处理",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = Ink
+                            text = buildString {
+                                append("${state.todayItems.size} 项")
+                                if (state.overdueCount > 0) append(" · 含 ${state.overdueCount} 项逾期")
+                            },
+                            style = MaterialTheme.typography.labelMedium,
+                            color = InkSoft
                         )
                     }
-                    Text(
-                        text = buildString {
-                            append("${state.todayItems.size} 项")
-                            if (state.overdueCount > 0) append(" · 含 ${state.overdueCount} 项逾期")
-                        },
-                        style = MaterialTheme.typography.labelMedium,
-                        color = InkSoft
-                    )
-                }
-            }
 
-            if (state.todayItems.isEmpty()) {
-                item { EmptyState("今天该做的都做完了，去休息吧。", icon = Icons.Default.Check) }
-            } else {
-                itemsIndexed(state.todayItems) { index, item ->
-                    TodayRow(
-                        item = item,
-                        index = index,
-                        onAction = {
-                            scope.launch {
-                                when (item.type) {
-                                    "schedule" -> vm.completeSchedule(item.id)
-                                    "habit" -> vm.quickHabit(item)
-                                    "wish" -> vm.buyDone(item.id)
-                                    "ledger_tip" -> onNavigate("ledger")
-                                    "fitness_tip" -> onNavigate("fitness")
-                                }
-                            }
-                        },
-                        onNavigate = onNavigate
-                    )
+                    if (state.todayItems.isEmpty()) {
+                        EmptyState("今天该做的都做完了，去休息吧。", icon = Icons.Default.Check)
+                    } else {
+                        state.todayItems.forEachIndexed { index, item ->
+                            TodayRow(
+                                item = item,
+                                index = index,
+                                onAction = {
+                                    scope.launch {
+                                        when (item.type) {
+                                            "schedule" -> vm.completeSchedule(item.id)
+                                            "habit" -> vm.quickHabit(item)
+                                            "wish" -> vm.buyDone(item.id)
+                                            "ledger_tip" -> onNavigate("ledger")
+                                            "fitness_tip" -> onNavigate("fitness")
+                                        }
+                                    }
+                                },
+                                onNavigate = onNavigate
+                            )
+                        }
+                    }
                 }
             }
 
@@ -407,12 +407,13 @@ private fun TodayRow(
 private fun SmallButton(text: String, highlighted: Boolean, onClick: () -> Unit) {
     val bg = if (highlighted) Clay else PaperCard
     val txt = if (highlighted) PaperCard else Ink
+    val borderColor = if (highlighted) Clay else Color(0xFFD8D2C6)
     Surface(
         modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
             .pressScale(scale = 0.94f, onClick = onClick),
         color = bg,
-        border = androidx.compose.foundation.BorderStroke(1.dp, if (highlighted) Clay else Line)
+        border = androidx.compose.foundation.BorderStroke(1.dp, borderColor)
     ) {
         Text(
             text = text,
@@ -539,6 +540,7 @@ private fun QuickLedgerCard(
                     Clay
                 }
                 val selected = selectedCat == cat.name
+                val catBorder = if (selected) catColor else Color(0xFFD8D2C6)
                 Surface(
                     modifier = Modifier
                         .clip(RoundedCornerShape(20.dp))
@@ -546,8 +548,8 @@ private fun QuickLedgerCard(
                             ctx.vibrateLight()
                             selectedCat = cat.name
                         },
-                    color = if (selected) catColor.copy(alpha = 0.10f) else PaperCard,
-                    border = androidx.compose.foundation.BorderStroke(1.5.dp, if (selected) catColor else Line)
+                    color = PaperCard,
+                    border = androidx.compose.foundation.BorderStroke(1.5.dp, catBorder)
                 ) {
                     Text(
                         cat.name,
@@ -573,7 +575,7 @@ private fun QuickLedgerCard(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = typeColor,
-                    unfocusedBorderColor = Line
+                    unfocusedBorderColor = Color(0xFFD8D2C6)
                 )
             )
         }
@@ -587,7 +589,7 @@ private fun QuickLedgerCard(
             singleLine = true,
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = typeColor,
-                unfocusedBorderColor = Line
+                unfocusedBorderColor = Color(0xFFD8D2C6)
             )
         )
         Spacer(Modifier.height(14.dp))
@@ -623,11 +625,11 @@ private fun QuickAmountChip(amount: Double, color: Color, onClick: () -> Unit) {
                 onClick()
             },
         color = PaperCard,
-        border = androidx.compose.foundation.BorderStroke(1.dp, Line)
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFD8D2C6))
     ) {
         Text(
             text = amount.toString(),
-            color = InkSoft,
+            color = Ink,
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 7.dp)
         )

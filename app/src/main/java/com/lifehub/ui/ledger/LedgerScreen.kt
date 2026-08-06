@@ -85,13 +85,12 @@ fun LedgerScreen() {
             currentNetRebate = summary.netRebate,
             onDismiss = { showBudgetDialog = false },
             onConfirm = { budget, netRebate ->
-                scope.launch {
-                    app.container.settings.setBudget(budget)
-                    app.container.settings.setNetRebate(netRebate)
+                    scope.launch {
+                        app.container.settings.setBudget(budget)
+                        app.container.settings.setNetRebate(netRebate)
+                    }
+                    showBudgetDialog = false
                 }
-                confettiKey++
-                showBudgetDialog = false
-            }
         )
     }
 

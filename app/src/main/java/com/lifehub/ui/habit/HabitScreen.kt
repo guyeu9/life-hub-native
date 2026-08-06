@@ -79,7 +79,6 @@ fun HabitScreen() {
             onAdd = { name, type, target, unit ->
                 vm.addHabit(name, type, target, unit)
                 context.vibrateSuccess()
-                confettiKey++
                 showAdd = false
             }
         )
