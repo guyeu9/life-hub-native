@@ -26,7 +26,9 @@ class SettingsRepository(private val context: Context) {
     @Serializable
     data class CategoryDef(
         val name: String,
-        val color: String = "#A2543C"
+        val color: String = "#A2543C",
+        /** 媒体类型专用 key（如 "book"/"movie"/"music"），其他类型留空 */
+        val key: String = ""
     )
 
     @Serializable
@@ -61,9 +63,9 @@ class SettingsRepository(private val context: Context) {
         val planTags: List<String> = listOf("生活", "工作", "家人", "健康", "家务", "学习"),
         val priorities: List<String> = listOf("P0", "P1", "P2"),
         val mediaTypes: List<CategoryDef> = listOf(
-            CategoryDef("书", "#A2543C"),
-            CategoryDef("影视", "#4A6478"),
-            CategoryDef("音乐", "#A8842F")
+            CategoryDef("书", "#A2543C", "book"),
+            CategoryDef("影视", "#4A6478", "movie"),
+            CategoryDef("音乐", "#A8842F", "music")
         )
     )
 

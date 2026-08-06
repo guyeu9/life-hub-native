@@ -261,7 +261,7 @@ class HomeViewModel(app: LifeHubApplication) : AndroidViewModel(app) {
     fun overallPct(state: HomeUiState): Int {
         val todoCfg = state.todoTotal > 0
         val habitCfg = state.habitTotal > 0
-        val moneyCfg = state.ledgerCount > 0
+        val moneyCfg = state.ledgerConfigured
         val bodyCfg = state.lastWeight != null
 
         val bud = state.budget

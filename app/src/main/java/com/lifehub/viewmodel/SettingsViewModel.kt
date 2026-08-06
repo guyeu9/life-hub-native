@@ -120,7 +120,10 @@ class SettingsViewModel(private val app: LifeHubApplication) : ViewModel() {
             FieldTab.TAG -> container.schedule.getAllOnce().count { it.tag == name }
             FieldTab.PRIORITY -> container.schedule.getAllOnce().count { it.priority == name } +
                     container.wish.getAllOnce().count { it.priority == name }
-            FieldTab.MEDIA -> container.media.getAllOnce().count { it.type == name }
+            FieldTab.MEDIA -> {
+                val key = container.settings.fields.first().mediaTypes.find { it.name == name }?.key ?: name
+                container.media.getAllOnce().count { it.type == key }
+            }
         }
     }
 
@@ -157,9 +160,8 @@ class SettingsViewModel(private val app: LifeHubApplication) : ViewModel() {
                     .forEach { container.wish.update(it.copy(priority = newName)) }
             }
             FieldTab.MEDIA -> {
-                container.media.getAllOnce()
-                    .filter { it.type == oldName }
-                    .forEach { container.media.update(it.copy(type = newName)) }
+                // 媒体类型数据库存的是 key（book/movie/music），重命名只改显示名，key 不变，
+                // 因此历史数据无需更新。
             }
         }
     }
@@ -195,8 +197,12 @@ class SettingsViewModel(private val app: LifeHubApplication) : ViewModel() {
                 s.size + w.size
             }
             FieldTab.MEDIA -> {
-                val items = container.media.getAllOnce().filter { it.type == oldName }
-                items.forEach { container.media.update(it.copy(type = targetName)) }
+                // 媒体类型按 key 匹配数据库记录
+                val fields = container.settings.fields.first()
+                val oldKey = fields.mediaTypes.find { it.name == oldName }?.key ?: oldName
+                val targetKey = fields.mediaTypes.find { it.name == targetName }?.key ?: targetName
+                val items = container.media.getAllOnce().filter { it.type == oldKey }
+                items.forEach { container.media.update(it.copy(type = targetKey)) }
                 items.size
             }
         }

@@ -200,7 +200,7 @@ fun FieldsMaintenanceSheet(
             OutlinedButton(
                 onClick = {
                     context.vibrateLight()
-                    scope.launch { vm.setFields(resetTab(selectedTab)) }
+                    scope.launch { vm.setFields(resetTab(selectedTab, state.fields)) }
                 },
                 modifier = Modifier.fillMaxWidth()
             ) { Text("恢复这一组出厂设置") }
@@ -314,15 +314,15 @@ private fun updateFields(
     }
 }
 
-private fun resetTab(tab: FieldTab): SettingsRepository.FieldTable {
+private fun resetTab(tab: FieldTab, current: SettingsRepository.FieldTable): SettingsRepository.FieldTable {
     val defaults = SettingsRepository.FieldTable()
     return when (tab) {
-        FieldTab.EXPENSE -> defaults.copy(incomeCats = emptyList(), rebateCats = emptyList(), planTags = emptyList(), priorities = emptyList(), mediaTypes = emptyList())
-        FieldTab.INCOME -> defaults.copy(expenseCats = emptyList(), rebateCats = emptyList(), planTags = emptyList(), priorities = emptyList(), mediaTypes = emptyList())
-        FieldTab.REBATE -> defaults.copy(expenseCats = emptyList(), incomeCats = emptyList(), planTags = emptyList(), priorities = emptyList(), mediaTypes = emptyList())
-        FieldTab.TAG -> defaults.copy(expenseCats = emptyList(), incomeCats = emptyList(), rebateCats = emptyList(), priorities = emptyList(), mediaTypes = emptyList())
-        FieldTab.PRIORITY -> defaults.copy(expenseCats = emptyList(), incomeCats = emptyList(), rebateCats = emptyList(), planTags = emptyList(), mediaTypes = emptyList())
-        FieldTab.MEDIA -> defaults.copy(expenseCats = emptyList(), incomeCats = emptyList(), rebateCats = emptyList(), planTags = emptyList(), priorities = emptyList())
+        FieldTab.EXPENSE -> current.copy(expenseCats = defaults.expenseCats)
+        FieldTab.INCOME -> current.copy(incomeCats = defaults.incomeCats)
+        FieldTab.REBATE -> current.copy(rebateCats = defaults.rebateCats)
+        FieldTab.TAG -> current.copy(planTags = defaults.planTags)
+        FieldTab.PRIORITY -> current.copy(priorities = defaults.priorities)
+        FieldTab.MEDIA -> current.copy(mediaTypes = defaults.mediaTypes)
     }
 }
 

@@ -18,6 +18,8 @@ data class LedgerSummary(
     val rebate: Double = 0.0,
     val rebateCount: Int = 0,
     val net: Double = 0.0,        // 实际结余 = 收入 + 返利 − 支出
+    val avgDailyExpense: Double = 0.0,
+    val avgDailyLabel: String = "",
     val budget: Double = 6000.0,
     val netRebate: Boolean = false,
     val byCategory: List<Pair<String, Double>> = emptyList()
@@ -109,6 +111,10 @@ class LedgerViewModel(app: LifeHubApplication) : AndroidViewModel(app) {
             .map { (cat, items) -> cat to items.sumOf { it.amount } }
             .sortedByDescending { it.second }
 
+        val isCurMonth = month == monthKeyOf(System.currentTimeMillis())
+        val divisor = if (isCurMonth) Calendar.getInstance().get(Calendar.DAY_OF_MONTH) else monthDays(month)
+        val avgDaily = expense / divisor.coerceAtLeast(1)
+
         LedgerSummary(
             month = month,
             income = income,
@@ -118,6 +124,8 @@ class LedgerViewModel(app: LifeHubApplication) : AndroidViewModel(app) {
             rebate = rebate,
             rebateCount = monthList.count { it.type == "rebate" },
             net = net,
+            avgDailyExpense = avgDaily,
+            avgDailyLabel = if (isCurMonth) "按已过天数" else "按整月天数",
             budget = budget,
             netRebate = netRebate,
             byCategory = byCat
@@ -225,5 +233,15 @@ class LedgerViewModel(app: LifeHubApplication) : AndroidViewModel(app) {
         val cal = Calendar.getInstance()
         cal.timeInMillis = ts
         return "%04d-%02d".format(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH) + 1)
+    }
+
+    /** 某月份的天数 */
+    private fun monthDays(key: String): Int {
+        val parts = key.split("-")
+        if (parts.size < 2) return 30
+        val cal = Calendar.getInstance().apply {
+            set(parts[0].toIntOrNull() ?: 2024, (parts[1].toIntOrNull() ?: 1) - 1, 1)
+        }
+        return cal.getActualMaximum(Calendar.DAY_OF_MONTH)
     }
 }

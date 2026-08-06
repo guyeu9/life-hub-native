@@ -1,7 +1,6 @@
 package com.lifehub.ui.home
 
 import android.widget.Toast
-import java.util.Calendar
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -11,8 +10,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -36,12 +33,11 @@ import com.lifehub.util.money2
 import com.lifehub.util.vibrateLight
 import com.lifehub.util.vibrateSuccess
 import com.lifehub.viewmodel.HomeItem
+import com.lifehub.ui.settings.QuickAmountsDialog
 import com.lifehub.viewmodel.HomeUiState
 import com.lifehub.viewmodel.HomeViewModel
 import com.lifehub.viewmodel.HomeViewModelFactory
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Locale
 
 @Composable
 fun HomeScreen(
@@ -50,7 +46,8 @@ fun HomeScreen(
     onImport: () -> Unit,
     onOpenSettings: () -> Unit = {}
 ) {
-    val app = LocalContext.current.applicationContext as LifeHubApplication
+    val context = LocalContext.current
+    val app = context.applicationContext as LifeHubApplication
     val vm: HomeViewModel = viewModel(factory = HomeViewModelFactory(app))
     val state by vm.uiState.collectAsState()
     val fields by app.container.settings.fields.collectAsState(initial = SettingsRepository.FieldTable())
@@ -62,6 +59,7 @@ fun HomeScreen(
     var qlAmount by remember { mutableStateOf("") }
     var qlNote by remember { mutableStateOf("") }
     var qlRebateOf by remember { mutableStateOf("") }
+    var showQuickAmts by remember { mutableStateOf(false) }
     var confettiKey by remember { mutableIntStateOf(0) }
 
     val typeCode = when (qlType) { "支出" -> "expense"; "收入" -> "income"; else -> "rebate" }
@@ -79,8 +77,6 @@ fun HomeScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp),
             contentPadding = PaddingValues(top = 18.dp, bottom = 28.dp)
         ) {
-            item { TopBar(dateText = todayDateText(), onExport = onExport, onImport = onImport, onSettings = onOpenSettings) }
-
             item { LifeIndexCard(state, vm) }
 
             // 随手记一笔（原网页在生活指数之后、今天要处理之前）
@@ -124,7 +120,7 @@ fun HomeScreen(
                         else -> quickAmounts.rebate
                     },
                     onQuickAmount = { qlAmount = it },
-                    onEditQuickAmounts = onOpenSettings,
+                    onEditQuickAmounts = { showQuickAmts = true },
                     onSave = { cat ->
                         val amt = qlAmount.toDoubleOrNull() ?: 0.0
                         if (amt > 0) {
@@ -208,45 +204,17 @@ fun HomeScreen(
         }
         ConfettiOverlay(trigger = confettiKey)
     }
-}
 
-private fun todayDateText(): String {
-    val cal = Calendar.getInstance()
-    val week = "日一二三四五六"
-    return SimpleDateFormat("M月d日", Locale.CHINA).format(cal.time) + " · 周" + week[cal.get(Calendar.DAY_OF_WEEK) - 1]
-}
-
-@Composable
-private fun TopBar(
-    dateText: String,
-    onExport: () -> Unit,
-    onImport: () -> Unit,
-    onSettings: () -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column {
-            Text(
-                text = "今日",
-                style = MaterialTheme.typography.displayMedium,
-                color = Ink
-            )
-            Text(
-                text = dateText,
-                style = MaterialTheme.typography.labelMedium,
-                color = InkSoft
-            )
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onExport) { Text("备份", color = Clay) }
-            TextButton(onClick = onImport) { Text("恢复", color = Clay) }
-            IconButton(onClick = onSettings) {
-                Icon(Icons.Default.Settings, contentDescription = "设置", tint = Ink)
+    if (showQuickAmts) {
+        QuickAmountsDialog(
+            current = quickAmounts,
+            onDismiss = { showQuickAmts = false },
+            onSave = { q ->
+                context.vibrateSuccess()
+                scope.launch { app.container.settings.setQuickAmounts(q) }
+                showQuickAmts = false
             }
-        }
+        )
     }
 }
 
@@ -641,62 +609,93 @@ private fun QuickAmountChip(amount: Double, color: Color, onClick: () -> Unit) {
 
 @Composable
 private fun TodayMetrics(state: HomeUiState) {
-    LifeCard {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            val todayExp = state.ledgerExpense
-            val todayReb = state.ledgerRebate
-            val left = state.budget - state.budgetUsed
-            MetricLine(
-                label = "今日支出",
-                value = "${money0(todayExp)} 元",
-                valueColor = Danger,
-                desc = if (todayExp > 0) "已记 ${state.ledgerCount} 笔" else "还没记账"
-            )
-            MetricLine(
-                label = "今日返利",
-                value = "${money2(todayReb)} 元",
-                valueColor = Gold,
-                desc = if (todayExp > 0) "相当于省了 ${if (todayExp > 0) (todayReb / todayExp * 100).toInt() else 0}%" else "吃饭记得领返利"
-            )
-            MetricLine(
-                label = "本月预算剩余",
-                value = "${money0(left)} 元",
-                valueColor = if (left < 0) Danger else Sage,
-                desc = "预算 ${money0(state.budget)}" + if (state.netRebate) " · 已抵返利" else ""
-            )
-            MetricLine(
-                label = "最长连续打卡",
-                value = "${state.maxStreak} 天",
-                valueColor = Clay,
-                desc = "${state.habitTotal} 个习惯在跟"
-            )
-            MetricLine(
-                label = "最近体重",
-                value = state.lastWeight?.let { "$it kg" } ?: "—",
-                valueColor = Ink,
-                desc = state.lastWeightDate.let { if (it.isNotBlank()) "$it 记录" else "还没有数据" }
-            )
+    val todayExp = state.ledgerExpense
+    val todayReb = state.ledgerRebate
+    val left = state.budget - state.budgetUsed
+    val metrics = listOf(
+        MetricData("今日支出", money0(todayExp), "元", if (todayExp > 0) "已记 ${state.ledgerCount} 笔" else "还没记账", Danger),
+        MetricData("今日返利", money2(todayReb), "元", if (todayExp > 0) "相当于省了 ${if (todayExp > 0) (todayReb / todayExp * 100).toInt() else 0}%" else "吃饭记得领返利", Gold),
+        MetricData("本月预算剩余", money0(left), "元", "预算 ${money0(state.budget)}${if (state.netRebate) " · 已抵返利" else ""}", if (left < 0) Danger else Sage),
+        MetricData("最长连续打卡", state.maxStreak.toString(), "天", "${state.habitTotal} 个习惯在跟", Clay),
+        MetricData("最近体重", state.lastWeight?.toString() ?: "—", "kg", state.lastWeightDate.let { if (it.isNotBlank()) "$it 记录" else "还没有数据" }, Ink)
+    )
+
+    // 网页 .metrics：带边框的卡片组，移动端两列（最后一项占满）
+    val cardModifier = Modifier.fillMaxWidth()
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(PaperCard)
+            .border(0.5.dp, Line)
+    ) {
+        metrics.chunked(2).forEachIndexed { rowIndex, pair ->
+            Row(modifier = Modifier.fillMaxWidth()) {
+                MetricCard(
+                    metric = pair[0],
+                    modifier = cardModifier.weight(1f)
+                )
+                if (pair.size > 1) {
+                    VerticalDivider(thickness = 0.5.dp, color = Line)
+                    MetricCard(
+                        metric = pair[1],
+                        modifier = cardModifier.weight(1f)
+                    )
+                } else {
+                    Spacer(modifier = cardModifier.weight(1f))
+                }
+            }
+            if (rowIndex < metrics.size / 2) {
+                HorizontalDivider(thickness = 0.5.dp, color = Line)
+            }
         }
     }
 }
 
+private data class MetricData(
+    val label: String,
+    val value: String,
+    val unit: String,
+    val desc: String,
+    val valueColor: Color
+)
+
 @Composable
-private fun MetricLine(
-    label: String,
-    value: String,
-    valueColor: Color,
-    desc: String
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+private fun MetricCard(metric: MetricData, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(PaperCard)
+            .padding(horizontal = 14.dp, vertical = 12.dp)
     ) {
-        Text(label, style = MaterialTheme.typography.bodyMedium, color = InkSoft)
-        Column(horizontalAlignment = Alignment.End) {
-            Text(value, style = MaterialTheme.typography.bodyLarge, color = valueColor, fontWeight = FontWeight.SemiBold)
-            Text(desc, style = MaterialTheme.typography.labelSmall, color = InkSoft)
+        Text(
+            metric.label,
+            style = MaterialTheme.typography.labelSmall,
+            color = InkSoft,
+            letterSpacing = MaterialTheme.typography.labelSmall.letterSpacing
+        )
+        Spacer(Modifier.height(4.dp))
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(
+                metric.value,
+                style = MaterialTheme.typography.headlineMedium,
+                color = metric.valueColor,
+                fontWeight = FontWeight.SemiBold,
+                lineHeight = MaterialTheme.typography.headlineMedium.lineHeight
+            )
+            Spacer(Modifier.width(3.dp))
+            Text(
+                metric.unit,
+                style = MaterialTheme.typography.labelMedium,
+                color = InkSoft,
+                modifier = Modifier.padding(bottom = 3.dp)
+            )
         }
+        Spacer(Modifier.height(2.dp))
+        Text(
+            metric.desc,
+            style = MaterialTheme.typography.labelSmall,
+            color = InkSoft
+        )
     }
 }
 

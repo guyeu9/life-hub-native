@@ -6,21 +6,39 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Upload
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.lifehub.ui.navigation.Destination
 import com.lifehub.ui.navigation.LifeHubBottomBar
 import com.lifehub.ui.navigation.LifeHubNavGraph
-import com.lifehub.ui.theme.LifeHubTheme
+import com.lifehub.ui.theme.*
 import com.lifehub.util.JsonBackupUtil
+import com.lifehub.util.vibrateLight
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -53,17 +71,104 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                val onExport = { exportLauncher.launch("life-hub-backup-${System.currentTimeMillis() / 1000}.json") }
+                val onImport = { importLauncher.launch(arrayOf("application/json")) }
+                val onOpenSettings = { navController.navigate(Destination.Settings.route) }
+
                 Scaffold(
+                    topBar = {
+                        LifeHubTopBar(
+                            onExport = onExport,
+                            onImport = onImport,
+                            onOpenSettings = onOpenSettings
+                        )
+                    },
                     bottomBar = { LifeHubBottomBar(navController) }
                 ) { padding ->
                     LifeHubNavGraph(
                         navController = navController,
-                        onExport = { exportLauncher.launch("life-hub-backup-${System.currentTimeMillis() / 1000}.json") },
-                        onImport = { importLauncher.launch(arrayOf("application/json")) },
+                        onExport = onExport,
+                        onImport = onImport,
                         modifier = Modifier.padding(padding)
                     )
                 }
             }
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LifeHubTopBar(
+    onExport: () -> Unit,
+    onImport: () -> Unit,
+    onOpenSettings: () -> Unit
+) {
+    val ctx = LocalContext.current
+    TopAppBar(
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(7.dp)
+                        .clip(CircleShape)
+                        .background(Clay)
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    "生活台",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Ink
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "Life Desk",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = InkSoft,
+                    letterSpacing = MaterialTheme.typography.labelSmall.letterSpacing
+                )
+                Spacer(Modifier.width(14.dp))
+                Text(
+                    todayTopDate(),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = InkSoft
+                )
+            }
+        },
+        actions = {
+            TextButton(onClick = {
+                ctx.vibrateLight()
+                onExport()
+            }) {
+                Icon(Icons.Default.Download, contentDescription = null, tint = Clay, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("导出备份", color = Clay, style = MaterialTheme.typography.labelMedium)
+            }
+            TextButton(onClick = {
+                ctx.vibrateLight()
+                onImport()
+            }) {
+                Icon(Icons.Default.Upload, contentDescription = null, tint = Clay, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("导入恢复", color = Clay, style = MaterialTheme.typography.labelMedium)
+            }
+            IconButton(onClick = {
+                ctx.vibrateLight()
+                onOpenSettings()
+            }) {
+                Icon(Icons.Default.Settings, contentDescription = "设置", tint = Ink)
+            }
+        },
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = Paper,
+            scrolledContainerColor = Paper
+        )
+    )
+}
+
+private fun todayTopDate(): String {
+    val cal = Calendar.getInstance()
+    val week = "日一二三四五六"
+    return SimpleDateFormat("M月d日", Locale.CHINA).format(cal.time) + " · 周" + week[cal.get(Calendar.DAY_OF_WEEK) - 1]
 }

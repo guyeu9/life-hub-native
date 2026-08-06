@@ -37,8 +37,7 @@ sealed class Destination(
 
 val ALL_DESTINATIONS = listOf(
     Destination.Home, Destination.Ledger, Destination.Habit,
-    Destination.Fitness, Destination.Schedule, Destination.Wishlist, Destination.Media,
-    Destination.Settings
+    Destination.Fitness, Destination.Schedule, Destination.Wishlist, Destination.Media
 )
 
 @Composable

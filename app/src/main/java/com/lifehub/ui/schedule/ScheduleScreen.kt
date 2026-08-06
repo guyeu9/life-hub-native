@@ -24,6 +24,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lifehub.LifeHubApplication
+import com.lifehub.data.SettingsRepository
 import com.lifehub.data.entity.ScheduleEntity
 import com.lifehub.ui.components.*
 import com.lifehub.ui.theme.*
@@ -49,14 +50,19 @@ fun ScheduleScreen() {
     val vm: ScheduleViewModel = viewModel(factory = ScheduleViewModelFactory(app))
     val state by vm.uiState.collectAsState()
     val scope by vm.scope.collectAsState()
+    val fields by app.container.settings.fields.collectAsState(initial = SettingsRepository.FieldTable())
     val rows = remember(state, scope) { vm.filtered(state) }
 
     var title by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
-    var priority by remember { mutableStateOf("P1") }
+    var priority by remember { mutableStateOf(fields.priorities.getOrNull(1) ?: "P1") }
     var dateStr by remember { mutableStateOf(todayKey()) }
     var timeStr by remember { mutableStateOf("") }
-    var tag by remember { mutableStateOf("生活") }
+    var tag by remember { mutableStateOf(fields.planTags.firstOrNull() ?: "生活") }
+    LaunchedEffect(fields) {
+        if (priority !in fields.priorities) priority = fields.priorities.getOrNull(1) ?: fields.priorities.firstOrNull() ?: "P1"
+        if (tag !in fields.planTags) tag = fields.planTags.firstOrNull() ?: "生活"
+    }
     var showDatePicker by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<ScheduleEntity?>(null) }
     var confettiTrigger by remember { mutableIntStateOf(0) }
@@ -145,7 +151,7 @@ fun ScheduleScreen() {
                         )
                     }
                     Spacer(Modifier.height(8.dp))
-                    TagSelector(tag) { tag = it }
+                    TagSelector(tags = fields.planTags, selected = tag) { tag = it }
                     Spacer(Modifier.height(8.dp))
                     Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp), Alignment.CenterVertically) {
                         OutlinedTextField(
@@ -155,7 +161,7 @@ fun ScheduleScreen() {
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Clay, unfocusedBorderColor = Line)
                         )
-                        PrioritySelector(priority) { priority = it }
+                        PrioritySelector(pris = fields.priorities, selected = priority) { priority = it }
                     }
                     Spacer(Modifier.height(12.dp))
                     SuccessButton(
@@ -247,18 +253,23 @@ private fun RowScope.Metric(label: String, value: String, unit: String, desc: St
 }
 
 @Composable
-private fun PrioritySelector(selected: String, onSelect: (String) -> Unit) {
-    val pris = listOf("P0", "P1", "P2")
-    val colors = mapOf("P0" to Danger, "P1" to Clay, "P2" to InkSoft)
+private fun PrioritySelector(pris: List<String>, selected: String, onSelect: (String) -> Unit) {
+    val colors = pris.mapIndexed { i, _ ->
+        when (i) {
+            0 -> Danger
+            1 -> Clay
+            else -> InkSoft
+        }
+    }
     Row(
         Modifier.clip(RoundedCornerShape(8.dp)).border(1.dp, Line, RoundedCornerShape(8.dp))
     ) {
-        pris.forEach { p ->
+        pris.forEachIndexed { i, p ->
             val on = p == selected
             Box(
                 Modifier
                     .clickable { onSelect(p) }
-                    .background(if (on) colors[p]!! else Color.Transparent)
+                    .background(if (on) colors[i] else Color.Transparent)
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -269,34 +280,26 @@ private fun PrioritySelector(selected: String, onSelect: (String) -> Unit) {
 }
 
 @Composable
-private fun TagSelector(selected: String, onSelect: (String) -> Unit) {
-    val tags = listOf("生活", "工作", "家人", "健康", "家务", "学习")
-    val tagColors = mapOf(
-        "生活" to Clay,
-        "工作" to Slate,
-        "家人" to Amber,
-        "健康" to Sage,
-        "家务" to ClayLight,
-        "学习" to InkSoft
-    )
+private fun TagSelector(tags: List<String>, selected: String, onSelect: (String) -> Unit) {
+    val palette = listOf(Clay, Slate, Amber, Sage, ClayLight, InkSoft, Danger)
+    val tagColors = tags.mapIndexed { i, _ -> palette[i % palette.size] }
     Row(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
             .border(1.dp, Line, RoundedCornerShape(8.dp))
     ) {
-        tags.forEach { t ->
+        tags.forEachIndexed { i, t ->
             val on = t == selected
-            val color = tagColors[t] ?: Clay
             Box(
                 Modifier
                     .weight(1f)
                     .clickable { onSelect(t) }
-                    .background(if (on) color else Color.Transparent)
+                    .background(if (on) tagColors[i] else Color.Transparent)
                     .padding(vertical = 8.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text(t, style = MaterialTheme.typography.labelSmall, color = if (on) PaperCard else InkSoft)
+                Text(t, style = MaterialTheme.typography.labelSmall, color = if (on) PaperCard else InkSoft, maxLines = 1)
             }
         }
     }

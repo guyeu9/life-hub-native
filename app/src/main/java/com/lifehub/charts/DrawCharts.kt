@@ -12,6 +12,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 /**
  * 环形进度图（生活指数圆环）
@@ -326,3 +327,121 @@ fun HeatmapChart(
         }
     }
 }
+
+/**
+ * 结余瀑布图（对齐网页 svgWaterfall）
+ * 四根柱子：收入 → 返利 → 支出 → 实际结余，并用虚线连接
+ */
+@Composable
+fun WaterfallChart(
+    modifier: Modifier = Modifier
+        .fillMaxWidth()
+        .height(160.dp),
+    income: Double,
+    rebate: Double,
+    expense: Double
+) {
+    val ink = Color(0xFF1F1E1B)
+    val soft = Color(0xFF918C81)
+    val line = Color(0xFFE4DED2)
+    val green = Color(0xFF4C7554)
+    val gold = Color(0xFFA8842F)
+    val red = Color(0xFFB0433A)
+
+    Canvas(modifier = modifier) {
+        val net = income + rebate - expense
+        val steps = listOf(
+            WaterfallStep("收入", income, 0.0, income, green, false),
+            WaterfallStep("返利", rebate, income, income + rebate, gold, false),
+            WaterfallStep("支出", -expense, income + rebate, net, red, false),
+            WaterfallStep("实际结余", net, 0.0, net, if (net >= 0) Color(0xFF3F6347) else Color(0xFF8A2F27), true)
+        )
+        val peak = maxOf(income + rebate, expense, kotlin.math.abs(net), 1.0)
+        val topPad = 28f
+        val bottomPad = 42f
+        val chartH = size.height - topPad - bottomPad
+        val zeroY = size.height - bottomPad
+        val scale = (chartH / (peak * 1.12)).toFloat()
+        val n = steps.size
+        val gw = size.width / n
+        val barW = minOf(88f, gw * 0.5f)
+
+        // 零线
+        drawLine(
+            color = line,
+            start = Offset(0f, zeroY),
+            end = Offset(size.width, zeroY),
+            strokeWidth = 1.5f
+        )
+
+        steps.forEachIndexed { i, st ->
+            val cx = gw * i + gw / 2
+            val yA = zeroY - (st.from * scale).toFloat()
+            val yB = zeroY - (st.to * scale).toFloat()
+            val y = minOf(yA, yB)
+            val h = maxOf(kotlin.math.abs(yA - yB), 2f)
+
+            drawRoundRect(
+                color = st.color,
+                topLeft = Offset(cx - barW / 2, y),
+                size = Size(barW, h),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f),
+                alpha = if (st.total) 1f else 0.88f
+            )
+
+            // 连接虚线
+            if (i < n - 1 && !steps[i + 1].total) {
+                val nextCx = gw * (i + 1) + gw / 2
+                drawLine(
+                    color = soft,
+                    start = Offset(cx + barW / 2, yB),
+                    end = Offset(nextCx - barW / 2, yB),
+                    strokeWidth = 1f,
+                    pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(4f, 4f), 0f)
+                )
+            }
+
+            // 数值标签
+            val valueText = (if (st.total) "" else if (st.value >= 0) "+" else "−") +
+                    kotlin.math.abs(st.value).toInt().toString()
+            drawContext.canvas.nativeCanvas.apply {
+                val paint = android.graphics.Paint().apply {
+                    color = ink.toArgb()
+                    textSize = 13.sp.toPx()
+                    textAlign = android.graphics.Paint.Align.CENTER
+                }
+                drawText(valueText, cx, y - 8f, paint)
+            }
+
+            // 类别标签
+            drawContext.canvas.nativeCanvas.apply {
+                val paint = android.graphics.Paint().apply {
+                    color = if (st.total) ink.toArgb() else soft.toArgb()
+                    textSize = 11.sp.toPx()
+                    textAlign = android.graphics.Paint.Align.CENTER
+                    isFakeBoldText = st.total
+                }
+                drawText(st.label, cx, size.height - 24f, paint)
+            }
+        }
+
+        // 底部公式
+        drawContext.canvas.nativeCanvas.apply {
+            val paint = android.graphics.Paint().apply {
+                color = soft.toArgb()
+                textSize = 10.sp.toPx()
+                textAlign = android.graphics.Paint.Align.CENTER
+            }
+            drawText("实际结余 = 收入 + 返利 − 支出", size.width / 2, size.height - 6f, paint)
+        }
+    }
+}
+
+private data class WaterfallStep(
+    val label: String,
+    val value: Double,
+    val from: Double,
+    val to: Double,
+    val color: Color,
+    val total: Boolean
+)

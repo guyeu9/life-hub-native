@@ -52,9 +52,12 @@ fun WishlistScreen() {
 
     var name by remember { mutableStateOf("") }
     var price by remember { mutableStateOf("") }
-    var priority by remember { mutableStateOf("P1") }
+    var priority by remember { mutableStateOf(fields.priorities.getOrNull(1) ?: "P1") }
     var note by remember { mutableStateOf("") }
     var confettiKey by remember { mutableIntStateOf(0) }
+    LaunchedEffect(fields) {
+        if (priority !in fields.priorities) priority = fields.priorities.getOrNull(1) ?: fields.priorities.firstOrNull() ?: "P1"
+    }
 
     Box(Modifier.fillMaxSize()) {
         LazyColumn(
@@ -91,7 +94,7 @@ fun WishlistScreen() {
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Clay, unfocusedBorderColor = Line)
                         )
-                        PrioritySelector(priority) { priority = it }
+                        PrioritySelector(pris = fields.priorities, selected = priority) { priority = it }
                     }
                     Spacer(Modifier.height(8.dp))
                     OutlinedTextField(
@@ -188,12 +191,17 @@ private fun RowScope.Metric(label: String, value: String, unit: String, desc: St
 }
 
 @Composable
-private fun PrioritySelector(selected: String, onSelect: (String) -> Unit) {
+private fun PrioritySelector(pris: List<String>, selected: String, onSelect: (String) -> Unit) {
     val ctx = LocalContext.current
-    val pris = listOf("P0", "P1", "P2")
-    val colors = mapOf("P0" to Danger, "P1" to Clay, "P2" to InkSoft)
+    val colors = pris.mapIndexed { i, _ ->
+        when (i) {
+            0 -> Danger
+            1 -> Clay
+            else -> InkSoft
+        }
+    }
     Row(Modifier.clip(RoundedCornerShape(8.dp)).border(1.dp, Line, RoundedCornerShape(8.dp))) {
-        pris.forEach { p ->
+        pris.forEachIndexed { i, p ->
             val on = p == selected
             Box(
                 Modifier
@@ -201,7 +209,7 @@ private fun PrioritySelector(selected: String, onSelect: (String) -> Unit) {
                         ctx.vibrateTick()
                         onSelect(p)
                     }
-                    .background(if (on) colors[p]!! else Color.Transparent)
+                    .background(if (on) colors[i] else Color.Transparent)
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 contentAlignment = Alignment.Center
             ) {

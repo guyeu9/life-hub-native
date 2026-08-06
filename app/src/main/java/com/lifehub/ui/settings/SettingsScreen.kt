@@ -2,6 +2,7 @@
 
 package com.lifehub.ui.settings
 
+import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -102,6 +103,10 @@ fun SettingsScreen(
                         SettingsButton("从 JSON 备份导入 / 恢复") {
                             context.vibrateLight()
                             onImport()
+                        }
+                        SettingsButton("导出账本 Excel") {
+                            context.vibrateLight()
+                            Toast.makeText(context, "Excel 导出功能开发中", Toast.LENGTH_SHORT).show()
                         }
                         SettingsButton("字段维护（分类 / 标签 / 优先级）") {
                             context.vibrateLight()

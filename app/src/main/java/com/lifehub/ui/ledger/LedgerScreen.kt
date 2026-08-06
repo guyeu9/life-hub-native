@@ -1,6 +1,7 @@
 package com.lifehub.ui.ledger
 
 import android.graphics.Color as AndroidColor
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -24,6 +25,7 @@ import com.lifehub.charts.DonutChart
 import com.lifehub.charts.GroupedBarChart
 import com.lifehub.charts.LineChart
 import com.lifehub.charts.RingProgress
+import com.lifehub.charts.WaterfallChart
 import com.lifehub.data.SettingsRepository
 import com.lifehub.data.entity.LedgerEntity
 import com.lifehub.ui.components.*
@@ -96,25 +98,72 @@ fun LedgerScreen() {
             contentPadding = PaddingValues(top = 24.dp, bottom = 24.dp)
         ) {
             item { AnimatedHeader("记账理财") }
+
+            // 顶部 5 指标卡（对齐网页 .metrics）
+            item { LedgerMetrics(summary) }
+
+            // 结余是怎么来的（瀑布图）
+            item {
+                SectionHeader(title = "结余是怎么来的", note = summary.month)
+                LifeCard {
+                    WaterfallChart(
+                        income = summary.income,
+                        rebate = summary.rebate,
+                        expense = summary.expense
+                    )
+                }
+            }
+
+            // 月度预算
             item { SummaryCard(summary, onEditBudget = { showBudgetDialog = true }) }
+
+            // 返利概览
+            item { RebateOverviewCard(rebate, fields) }
+
+            // 消费结构
+            if (summary.byCategory.isNotEmpty()) {
+                item { CategoryDonut(summary.byCategory) }
+            }
+
+            // 月度对比
+            item { MonthlyComparisonCard(trend) }
+
+            // 明细 + 筛选
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("收支明细", style = MaterialTheme.typography.titleMedium, color = Ink)
+                    val ctx = LocalContext.current
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        TextButton(onClick = {
+                            Toast.makeText(ctx, "Excel 导出功能开发中", Toast.LENGTH_SHORT).show()
+                        }) {
+                            Text("Excel", color = Clay, style = MaterialTheme.typography.labelSmall)
+                        }
+                        TextButton(onClick = {
+                            Toast.makeText(ctx, "CSV 导出功能开发中", Toast.LENGTH_SHORT).show()
+                        }) {
+                            Text("CSV", color = Clay, style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
+            }
             item {
                 FilterBar(
                     all = all,
                     fields = fields,
                     filter = filter,
-                    onFilterChange = { vm.setFilter(it) }
+                    onFilterChange = { vm.setFilter(it) },
+                    onReset = { vm.setFilter(LedgerFilter()) }
                 )
             }
-            if (summary.byCategory.isNotEmpty()) {
-                item { CategoryDonut(summary.byCategory) }
-            }
-            item { RebateOverviewCard(rebate, fields) }
-            item { MonthlyComparisonCard(trend) }
-            item { Text("明细", style = MaterialTheme.typography.titleMedium, color = Ink) }
             itemsIndexed(filtered) { index, item ->
                 LedgerRow(
                     item = item,
-                    color = categoryColor(fields, item),
+                    fields = fields,
                     onDelete = {
                         vm.delete(item)
                         confettiKey++
@@ -226,6 +275,91 @@ private fun SummaryLine(label: String, value: String, color: Color) {
     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
         Text(label, style = MaterialTheme.typography.labelMedium, color = InkSoft)
         Text(value, style = MaterialTheme.typography.labelMedium, color = color)
+    }
+}
+
+@Composable
+private fun SectionHeader(title: String, note: String = "") {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Bottom
+    ) {
+        Text(title, style = MaterialTheme.typography.titleMedium, color = Ink)
+        if (note.isNotBlank()) {
+            Text(note, style = MaterialTheme.typography.labelSmall, color = InkSoft)
+        }
+    }
+}
+
+private data class LedgerMetric(
+    val label: String,
+    val value: String,
+    val unit: String,
+    val desc: String,
+    val valueColor: Color
+)
+
+@Composable
+private fun LedgerMetrics(s: LedgerSummary) {
+    val metrics = listOf(
+        LedgerMetric("${s.month} 支出", money0(s.expense), "元", "共 ${s.expenseCount} 笔", Danger),
+        LedgerMetric("${s.month} 收入", money0(s.income), "元", "共 ${s.incomeCount} 笔", Sage),
+        LedgerMetric("${s.month} 返利", money2(s.rebate), "元", "共 ${s.rebateCount} 笔", Gold),
+        LedgerMetric("实际结余", money0(s.net), "元", "收入 + 返利 − 支出", if (s.net >= 0) Sage else Danger),
+        LedgerMetric("日均支出", money0(s.avgDailyExpense), "元", s.avgDailyLabel, Ink)
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(PaperCard)
+            .border(0.5.dp, Line)
+    ) {
+        metrics.chunked(2).forEachIndexed { rowIndex, pair ->
+            Row(modifier = Modifier.fillMaxWidth()) {
+                LedgerMetricCard(pair[0], Modifier.weight(1f))
+                if (pair.size > 1) {
+                    VerticalDivider(thickness = 0.5.dp, color = Line)
+                    LedgerMetricCard(pair[1], Modifier.weight(1f))
+                } else {
+                    Spacer(Modifier.weight(1f))
+                }
+            }
+            if (rowIndex < metrics.size / 2) {
+                HorizontalDivider(thickness = 0.5.dp, color = Line)
+            }
+        }
+    }
+}
+
+@Composable
+private fun LedgerMetricCard(metric: LedgerMetric, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(PaperCard)
+            .padding(horizontal = 14.dp, vertical = 12.dp)
+    ) {
+        Text(metric.label, style = MaterialTheme.typography.labelSmall, color = InkSoft)
+        Spacer(Modifier.height(4.dp))
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(
+                metric.value,
+                style = MaterialTheme.typography.headlineMedium,
+                color = metric.valueColor,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(Modifier.width(3.dp))
+            Text(
+                metric.unit,
+                style = MaterialTheme.typography.labelMedium,
+                color = InkSoft,
+                modifier = Modifier.padding(bottom = 3.dp)
+            )
+        }
+        Spacer(Modifier.height(2.dp))
+        Text(metric.desc, style = MaterialTheme.typography.labelSmall, color = InkSoft)
     }
 }
 
@@ -420,19 +554,29 @@ private fun LedgerRow(item: LedgerEntity, color: Color, onDelete: () -> Unit, mo
             Box(Modifier.size(10.dp).clip(RoundedCornerShape(2.dp)).background(color))
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(item.category, style = MaterialTheme.typography.bodyMedium, color = Ink)
-                if (item.type == "rebate" && item.rebateOf > 0) {
-                    val rate = (item.amount / item.rebateOf * 100).toInt().coerceIn(0, 100)
-                    Text(
-                        "对应消费 ${money2(item.rebateOf)} · 返 ${rate}%",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Amber
-                    )
-                } else if (item.note.isNotBlank()) {
-                    Text(item.note, style = MaterialTheme.typography.labelSmall, color = InkSoft)
+                Text(
+                    item.note.ifBlank { item.category },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Ink,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+                Row(Modifier.padding(top = 2.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    val tagColor = when (item.type) {
+                        "rebate" -> Amber
+                        "income" -> Sage
+                        else -> Clay
+                    }
+                    Surface(shape = RoundedCornerShape(4.dp), color = tagColor.copy(alpha = 0.15f)) {
+                        Text(item.category, style = MaterialTheme.typography.labelSmall, color = tagColor, modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp))
+                    }
+                    Text(fullTime(item.date), style = MaterialTheme.typography.labelSmall, color = InkSoft)
+                    if (item.type == "rebate" && item.rebateOf > 0) {
+                        val rate = (item.amount / item.rebateOf * 100).toInt().coerceIn(0, 100)
+                        Text("对应消费 ${money2(item.rebateOf)} · 返 ${rate}%", style = MaterialTheme.typography.labelSmall, color = Amber)
+                    }
                 }
             }
-            Text(fullTime(item.date), style = MaterialTheme.typography.labelSmall, color = InkSoft)
             Spacer(Modifier.width(8.dp))
             Text("$sign${money2(item.amount)}", style = MaterialTheme.typography.labelLarge, color = colorForSign)
             Spacer(Modifier.width(8.dp))
@@ -585,7 +729,8 @@ private fun FilterBar(
     all: List<LedgerEntity>,
     fields: SettingsRepository.FieldTable,
     filter: LedgerFilter,
-    onFilterChange: (LedgerFilter) -> Unit
+    onFilterChange: (LedgerFilter) -> Unit,
+    onReset: () -> Unit
 ) {
     val months = remember(all) {
         all.map { monthKeyOf(it.date) }.distinct().sortedDescending()
@@ -639,6 +784,11 @@ private fun FilterBar(
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Clay, unfocusedBorderColor = Line)
             )
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = onReset) {
+                    Text("重置筛选", color = Clay, style = MaterialTheme.typography.labelMedium)
+                }
+            }
         }
     }
 }
