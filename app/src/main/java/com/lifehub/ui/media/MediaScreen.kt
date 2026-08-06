@@ -1,6 +1,7 @@
 package com.lifehub.ui.media
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Base64
@@ -53,6 +54,7 @@ import com.lifehub.util.vibrateSuccess
 import com.lifehub.util.vibrateTick
 import com.lifehub.viewmodel.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 

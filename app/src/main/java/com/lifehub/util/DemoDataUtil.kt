@@ -97,11 +97,11 @@ object DemoDataUtil {
 
         // 5. 日程（含 1 条逾期）
         val schedules = listOf(
-            ScheduleEntity(title = "交房租水电费", date = dayOffsetMillis(-2), tag = "生活", priority = "P0"),
-            ScheduleEntity(title = "给爸妈打个电话", date = dayOffsetMillis(0), time = "20:00", tag = "家人", priority = "P1"),
-            ScheduleEntity(title = "把冬天的衣服收进箱子", date = dayOffsetMillis(0), tag = "家务", priority = "P2"),
-            ScheduleEntity(title = "牙科复查", date = dayOffsetMillis(3), time = "10:30", tag = "健康", priority = "P1"),
-            ScheduleEntity(title = "取快递", date = dayOffsetMillis(-1), tag = "生活", priority = "P2", done = true)
+            ScheduleEntity(title = "交房租水电费", due = dayOffsetMillis(-2), tag = "生活", priority = "P0"),
+            ScheduleEntity(title = "给爸妈打个电话", due = dayOffsetMillis(0), time = "20:00", tag = "家人", priority = "P1"),
+            ScheduleEntity(title = "把冬天的衣服收进箱子", due = dayOffsetMillis(0), tag = "家务", priority = "P2"),
+            ScheduleEntity(title = "牙科复查", due = dayOffsetMillis(3), time = "10:30", tag = "健康", priority = "P1"),
+            ScheduleEntity(title = "取快递", due = dayOffsetMillis(-1), tag = "生活", priority = "P2", done = true)
         )
         c.schedule.insertAll(schedules)
 
