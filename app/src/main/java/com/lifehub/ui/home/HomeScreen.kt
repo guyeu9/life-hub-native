@@ -359,7 +359,12 @@ private fun TodayRow(
                     .background(if (item.overdue) Danger else Color(0xFFB8B2A6))
             )
             Column(Modifier.weight(1f)) {
-                Text(item.title, style = MaterialTheme.typography.bodyMedium, color = Ink)
+                Text(
+                    item.title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (item.overdue) Danger else Ink,
+                    fontWeight = if (item.overdue) androidx.compose.ui.text.font.FontWeight.SemiBold else null
+                )
                 Text(item.sub, style = MaterialTheme.typography.labelSmall, color = if (item.overdue) Danger else InkSoft)
             }
             if (item.action.isNotBlank()) {
