@@ -194,7 +194,7 @@ private fun HabitCard(
                 Text(hv.habit.name, style = MaterialTheme.typography.titleMedium, color = Ink)
             }
             IconButton(onClick = onDelete) {
-                Icon(Icons.Filled.Delete, contentDescription = "删除", tint = InkSoft)
+                Icon(Icons.Filled.Delete, contentDescription = "删除", tint = Danger)
             }
         }
         Spacer(Modifier.height(2.dp))
@@ -241,8 +241,8 @@ private fun CheckButton(checked: Boolean, color: Color, onClick: () -> Unit) {
             modifier = Modifier
                 .size(36.dp)
                 .clip(CircleShape)
-                .background(if (checked) color else Color.Transparent)
-                .border(1.5.dp, color, CircleShape)
+                .background(if (checked) Sage else Color.White)
+                .border(1.5.dp, if (checked) Sage else InkFaint, CircleShape)
                 .toggleClick { onClick() },
             contentAlignment = Alignment.Center
         ) {

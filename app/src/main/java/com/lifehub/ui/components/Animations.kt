@@ -21,7 +21,9 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.lifehub.ui.theme.Clay
 import com.lifehub.ui.theme.Ink
 import com.lifehub.ui.theme.InkSoft
@@ -136,10 +138,22 @@ fun AnimatedNumber(value: String, color: Color = Ink) {
 
 /**
  * 页面标题 + 副标题入场动画。
+ * eyebrow：对齐 HTML .eyebrow（clay 色 / 全大写 / 宽字距 小标）
  */
 @Composable
-fun AnimatedHeader(title: String, subtitle: String? = null) {
+fun AnimatedHeader(title: String, subtitle: String? = null, eyebrow: String? = null) {
     Column {
+        eyebrow?.let { eb ->
+            Text(
+                text = eb.uppercase(),
+                style = MaterialTheme.typography.labelSmall,
+                color = Clay,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 2.2.sp,
+                modifier = Modifier.animateContentSize()
+            )
+            Spacer(Modifier.height(2.dp))
+        }
         Text(
             text = title,
             style = MaterialTheme.typography.displayMedium,

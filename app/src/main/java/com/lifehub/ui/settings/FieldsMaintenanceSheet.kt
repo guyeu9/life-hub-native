@@ -36,7 +36,16 @@ enum class FieldTab(val label: String, val key: String) {
     REBATE("返利分类", "rebateCats"),
     TAG("日程标签", "planTags"),
     PRIORITY("优先级", "pris"),
-    MEDIA("收藏类型", "mediaTypes")
+    MEDIA("书影音类型", "mediaTypes")
+}
+
+private fun tipForTab(tab: FieldTab): String = when (tab) {
+    FieldTab.EXPENSE -> "改名后，历史账目里用到这个分类的记录会同步更新，不会丢数据。"
+    FieldTab.INCOME -> "改名后，历史账目里用到这个分类的记录会同步更新，不会丢数据。"
+    FieldTab.REBATE -> "返利分类专门用来区分返利来源，比如外卖返利、信用卡返现。"
+    FieldTab.TAG -> "日程添加时可以直接选这些标签。"
+    FieldTab.PRIORITY -> "列表顺序就是优先级高低，最上面的最紧急。"
+    FieldTab.MEDIA -> "可以加「播客」「展览」「话剧」这类你自己的分类。"
 }
 
 @Composable
@@ -51,6 +60,7 @@ fun FieldsMaintenanceSheet(
     val scope = rememberCoroutineScope()
 
     var pendingDelete by remember { mutableStateOf<PendingDelete?>(null) }
+    var showResetConfirm by remember { mutableStateOf(false) }
 
     val items = rememberItemsForTab(state.fields, selectedTab)
     val onUpdate: (List<SettingsRepository.CategoryDef>) -> Unit = { list ->
@@ -71,7 +81,7 @@ fun FieldsMaintenanceSheet(
                 .padding(bottom = 32.dp)
         ) {
             Text("字段维护", style = MaterialTheme.typography.headlineSmall, color = Ink)
-            Text("改名后历史记录会同步更新，删除前请确认无数据引用", style = MaterialTheme.typography.bodySmall, color = InkSoft)
+            Text(tipForTab(selectedTab), style = MaterialTheme.typography.bodySmall, color = InkSoft)
             Spacer(Modifier.height(12.dp))
 
             // Tab bar
@@ -179,7 +189,8 @@ fun FieldsMaintenanceSheet(
                     value = newName,
                     onValueChange = { newName = it },
                     modifier = Modifier.weight(1f),
-                    placeholder = { Text("新增一项") },
+                    label = { Text("新增一项") },
+                    placeholder = { Text("输入名称后回车或点添加") },
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Clay, unfocusedBorderColor = Line)
                 )
@@ -200,11 +211,31 @@ fun FieldsMaintenanceSheet(
             OutlinedButton(
                 onClick = {
                     context.vibrateLight()
-                    scope.launch { vm.setFields(resetTab(selectedTab, state.fields)) }
+                    showResetConfirm = true
                 },
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("恢复这一组出厂设置") }
+            ) { Text("恢复这一组的出厂设置") }
         }
+    }
+
+    if (showResetConfirm) {
+        AlertDialog(
+            onDismissRequest = { showResetConfirm = false },
+            title = { Text("恢复出厂设置", color = Ink) },
+            text = { Text("会把「${selectedTab.label}」这一组恢复成默认内容。已有记录不会被删除，但可能引用到已不存在的名称。") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        context.vibrateLight()
+                        scope.launch { vm.setFields(resetTab(selectedTab, state.fields)) }
+                        showResetConfirm = false
+                    }
+                ) { Text("恢复", color = Danger) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showResetConfirm = false }) { Text("取消") }
+            }
+        )
     }
 
     pendingDelete?.let { pd ->
@@ -350,7 +381,16 @@ private fun FieldRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        ColorSwatch(item.color) { onColorChange(it) }
+        if (tab == FieldTab.EXPENSE || tab == FieldTab.INCOME || tab == FieldTab.REBATE) {
+            ColorSwatch(item.color) { onColorChange(it) }
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(12.dp)
+                    .clip(CircleShape)
+                    .background(InkSoft.copy(alpha = 0.4f))
+            )
+        }
         OutlinedTextField(
             value = name,
             onValueChange = { name = it },

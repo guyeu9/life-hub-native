@@ -15,6 +15,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -149,15 +150,21 @@ fun HomeScreen(
             // 今天要处理
             item {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Brush.horizontalGradient(listOf(Clay.copy(alpha = 0.07f), Color.Transparent))),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "今天要处理",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = Ink
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("📋", style = MaterialTheme.typography.titleMedium)
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = "今天要处理",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = Ink
+                        )
+                    }
                     Text(
                         text = buildString {
                             append("${state.todayItems.size} 项")
@@ -170,7 +177,7 @@ fun HomeScreen(
             }
 
             if (state.todayItems.isEmpty()) {
-                item { EmptyState("今天该做的都做完了，去休息吧") }
+                item { EmptyState("今天该做的都做完了，去休息吧。") }
             } else {
                 itemsIndexed(state.todayItems) { index, item ->
                     TodayRow(
@@ -297,7 +304,7 @@ private fun LifeIndexCard(state: HomeUiState, vm: HomeViewModel) {
                     label = "身体",
                     value = if (state.lastWeight != null) {
                         if (state.weighedToday) {
-                            "今日 ${state.todayWeight}kg" + (state.todayBodyFat?.let { " · ${kotlin.math.round(it).toInt()}% 脂" } ?: "")
+                            "今日 ${state.todayWeight?.let { if (it % 1.0 == 0.0) it.toInt().toString() else "%.1f".format(it) } ?: "—"}kg" + (state.todayBodyFat?.let { " · ${kotlin.math.round(it).toInt()}% 脂" } ?: "")
                         } else "今日未称重"
                     } else "未设置"
                 )
@@ -347,7 +354,7 @@ private fun TodayRow(
                 if (item.type == "ledger_tip") onNavigate("ledger")
                 else if (item.type == "fitness_tip") onNavigate("fitness")
             },
-        color = Color.Transparent
+        color = if (item.overdue) Danger.copy(alpha = 0.045f) else Color.Transparent
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
@@ -495,7 +502,7 @@ private fun QuickLedgerCard(
                     color = typeColor,
                     onClick = {
                         ctx.vibrateLight()
-                        onQuickAmount(amt.toInt().toString())
+                        onQuickAmount(amt.toString())
                     }
                 )
             }
@@ -561,7 +568,7 @@ private fun QuickLedgerCard(
             value = note,
             onValueChange = onNoteChange,
             modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("备注（可选）") },
+            placeholder = { Text("备注（选填）") },
             singleLine = true,
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = typeColor,
@@ -604,7 +611,7 @@ private fun QuickAmountChip(amount: Double, color: Color, onClick: () -> Unit) {
         border = androidx.compose.foundation.BorderStroke(1.dp, Line)
     ) {
         Text(
-            text = amount.toInt().toString(),
+            text = amount.toString(),
             color = InkSoft,
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 7.dp)
@@ -622,7 +629,7 @@ private fun TodayMetrics(state: HomeUiState) {
         MetricData("今日返利", money2(todayReb), "元", if (todayExp > 0) "相当于省了 ${if (todayExp > 0) (todayReb / todayExp * 100).toInt() else 0}%" else "吃饭记得领返利", Gold),
         MetricData("本月预算剩余", money0(left), "元", "预算 ${money0(state.budget)}${if (state.netRebate) " · 已抵返利" else ""}", if (left < 0) Danger else Sage),
         MetricData("最长连续打卡", state.maxStreak.toString(), "天", "${state.habitTotal} 个习惯在跟", Clay),
-        MetricData("最近体重", state.lastWeight?.toString() ?: "—", "kg", state.lastWeightDate.let { if (it.isNotBlank()) "$it 记录" else "还没有数据" }, Ink)
+        MetricData("最近体重", state.lastWeight?.let { if (it % 1.0 == 0.0) it.toInt().toString() else "%.1f".format(it) } ?: "—", "kg", state.lastWeightDate.let { if (it.isNotBlank()) "$it 记录" else "还没有数据" }, Ink)
     )
 
     // 网页 .metrics：带边框的卡片组，移动端两列（最后一项占满）
@@ -635,18 +642,21 @@ private fun TodayMetrics(state: HomeUiState) {
     ) {
         metrics.chunked(2).forEachIndexed { rowIndex, pair ->
             Row(modifier = Modifier.fillMaxWidth()) {
-                MetricCard(
-                    metric = pair[0],
-                    modifier = cardModifier.weight(1f)
-                )
                 if (pair.size > 1) {
+                    MetricCard(
+                        metric = pair[0],
+                        modifier = cardModifier.weight(1f)
+                    )
                     VerticalDivider(thickness = 0.5.dp, color = Line)
                     MetricCard(
                         metric = pair[1],
                         modifier = cardModifier.weight(1f)
                     )
                 } else {
-                    Spacer(modifier = cardModifier.weight(1f))
+                    MetricCard(
+                        metric = pair[0],
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
             if (rowIndex < metrics.size / 2) {
@@ -733,12 +743,12 @@ private fun AmountStepper(
         }
         OutlinedTextField(
             value = value,
-            onValueChange = { onValueChange(it.filter { c -> c.isDigit() }) },
+            onValueChange = { onValueChange(it.filter { c -> c.isDigit() || c == '.' }) },
             modifier = Modifier.weight(1f),
             textStyle = MaterialTheme.typography.headlineMedium.copy(textAlign = TextAlign.Center),
             prefix = { Text("¥", color = InkSoft) },
             singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = accentColor,
                 unfocusedBorderColor = Line

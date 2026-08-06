@@ -30,10 +30,9 @@ fun QuickAmountsDialog(
         title = { Text("自定义常用金额", color = Ink) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("用逗号分隔，最多 8 个，留空则用出厂值", style = MaterialTheme.typography.bodySmall, color = InkSoft)
-                AmtField("支出", expense) { expense = it }
-                AmtField("收入", income) { income = it }
-                AmtField("返利", rebate) { rebate = it }
+                AmtField("支出（用逗号分隔，最多 8 个，如 10,20,50）", expense) { expense = it }
+                AmtField("收入（用逗号分隔，最多 8 个，如 10,20,50）", income) { income = it }
+                AmtField("返利（用逗号分隔，最多 8 个，如 10,20,50）", rebate) { rebate = it }
             }
         },
         confirmButton = {
@@ -60,7 +59,7 @@ private fun AmtField(label: String, value: String, onChange: (String) -> Unit) {
         onValueChange = onChange,
         modifier = Modifier.fillMaxWidth(),
         label = { Text(label, color = InkSoft) },
-        placeholder = { Text("如 10,20,50") },
+        placeholder = { Text("留空则用出厂值") },
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
         colors = OutlinedTextFieldDefaults.colors(

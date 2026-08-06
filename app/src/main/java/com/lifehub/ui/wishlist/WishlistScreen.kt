@@ -1,13 +1,18 @@
 package com.lifehub.ui.wishlist
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lifehub.LifeHubApplication
@@ -29,7 +35,6 @@ import com.lifehub.ui.components.animateItemSlide
 import com.lifehub.ui.components.EmptyState
 import com.lifehub.ui.components.LifeCard
 import com.lifehub.ui.components.SuccessButton
-import com.lifehub.ui.components.hapticClick
 import com.lifehub.ui.components.toggleClick
 import com.lifehub.ui.theme.*
 import com.lifehub.util.money0
@@ -67,6 +72,7 @@ fun WishlistScreen() {
         ) {
             item {
                 AnimatedHeader(
+                    eyebrow = "Wishlist",
                     title = "待买清单",
                     subtitle = "先记下来，过几天再看还想不想要。"
                 )
@@ -114,7 +120,8 @@ fun WishlistScreen() {
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = name.isNotBlank()
+                        enabled = name.isNotBlank(),
+                        containerColor = Ink
                     )
                 }
             }
@@ -143,6 +150,7 @@ fun WishlistScreen() {
                         onBoughtLedger = {
                             context.vibrateSuccess()
                             vm.markBoughtAndLedger(item, fields)
+                            Toast.makeText(context, "已标记买到，并记了一笔 ¥${money0(item.estPrice)}", Toast.LENGTH_SHORT).show()
                         },
                         modifier = Modifier.animateItemSlide(index)
                     )
@@ -260,19 +268,32 @@ private fun WishRow(
             modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp, horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Checkbox(
-                checked = item.bought,
-                onCheckedChange = null,
-                modifier = Modifier.toggleClick { onToggle() },
-                colors = CheckboxDefaults.colors(checkedColor = Sage)
-            )
+            Box(
+                modifier = Modifier
+                    .size(22.dp)
+                    .clip(CircleShape)
+                    .background(if (item.bought) Sage else Color.White)
+                    .border(1.6.dp, if (item.bought) Sage else InkFaint, CircleShape)
+                    .toggleClick { onToggle() },
+                contentAlignment = Alignment.Center
+            ) {
+                if (item.bought) {
+                    Icon(
+                        Icons.Default.Check,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+            }
             Spacer(Modifier.width(8.dp))
             Column(Modifier.weight(1f)) {
                 Text(
                     item.name,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = if (item.bought) InkSoft else Ink,
-                    fontWeight = if (item.bought) FontWeight.Normal else FontWeight.Medium
+                    color = if (item.bought) InkFaint else Ink,
+                    fontWeight = if (item.bought) FontWeight.Normal else FontWeight.Medium,
+                    textDecoration = if (item.bought) TextDecoration.LineThrough else TextDecoration.None
                 )
                 Row(Modifier.padding(top = 2.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Surface(shape = RoundedCornerShape(4.dp), color = priColor.copy(alpha = 0.15f)) {
@@ -296,12 +317,9 @@ private fun WishRow(
                     Text("已买并记账", style = MaterialTheme.typography.labelSmall)
                 }
             }
-            Text(
-                "删除",
-                modifier = Modifier.hapticClick { onDelete() }.padding(4.dp),
-                style = MaterialTheme.typography.labelMedium,
-                color = Danger
-            )
+            IconButton(onClick = { onDelete() }) {
+                Icon(Icons.Default.Delete, contentDescription = "删除", tint = Danger)
+            }
         }
     }
 }

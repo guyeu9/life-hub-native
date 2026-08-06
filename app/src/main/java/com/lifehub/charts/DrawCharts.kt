@@ -15,6 +15,7 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lifehub.util.money0
 
 /**
  * 环形进度图（生活指数圆环）
@@ -74,37 +75,41 @@ private val Amber = Color(0xFFC8893B)
 fun DonutChart(
     modifier: Modifier = Modifier.size(140.dp),
     segments: List<Pair<Float, Color>>,
-    trackColor: Color = Line
+    trackColor: Color = Line,
+    centerLabel: @Composable () -> Unit = {}
 ) {
-    Canvas(modifier = modifier) {
-        if (segments.isEmpty()) return@Canvas
-        val radius = (size.minDimension) / 2
-        val center = Offset(size.width / 2, size.height / 2)
-        val total = segments.sumOf { it.first.toDouble() }.toFloat().coerceAtLeast(0.0001f)
-        val strokeWidth = 18f
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            if (segments.isEmpty()) return@Canvas
+            val radius = (size.minDimension) / 2
+            val center = Offset(size.width / 2, size.height / 2)
+            val total = segments.sumOf { it.first.toDouble() }.toFloat().coerceAtLeast(0.0001f)
+            val strokeWidth = 18f
 
-        // 背景
-        drawCircle(
-            color = trackColor,
-            radius = radius - strokeWidth / 2,
-            center = center,
-            style = Stroke(width = strokeWidth)
-        )
-
-        var start = -90f
-        segments.forEach { (value, color) ->
-            val sweep = 360f * (value / total)
-            drawArc(
-                color = color,
-                startAngle = start,
-                sweepAngle = sweep,
-                useCenter = false,
-                topLeft = Offset(center.x - radius, center.y - radius),
-                size = Size(radius * 2, radius * 2),
-                style = Stroke(width = strokeWidth, cap = StrokeCap.Butt)
+            // 背景
+            drawCircle(
+                color = trackColor,
+                radius = radius - strokeWidth / 2,
+                center = center,
+                style = Stroke(width = strokeWidth)
             )
-            start += sweep
+
+            var start = -90f
+            segments.forEach { (value, color) ->
+                val sweep = 360f * (value / total)
+                drawArc(
+                    color = color,
+                    startAngle = start,
+                    sweepAngle = sweep,
+                    useCenter = false,
+                    topLeft = Offset(center.x - radius, center.y - radius),
+                    size = Size(radius * 2, radius * 2),
+                    style = Stroke(width = strokeWidth, cap = StrokeCap.Butt)
+                )
+                start += sweep
+            }
         }
+        centerLabel()
     }
 }
 
@@ -310,20 +315,20 @@ fun HeatmapChart(
             val r = i / cols
             val x = c * (cell + gap)
             val y = r * (cellH + gap)
-            val alpha = (0.24f + ratio * 0.76f).coerceIn(0f, 1f)
+            val cellColor = if (ratio <= 0f) Color(0xFFEEE9DE) else color.copy(alpha = 0.24f + ratio * 0.76f)
             drawRoundRect(
-                color = color.copy(alpha = alpha),
+                color = cellColor,
                 topLeft = Offset(x, y),
                 size = Size(cell, cellH),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(3f, 3f)
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f)
             )
             if (i == todayIndex) {
                 drawRoundRect(
-                    color = Color(0xFF2B2622),
+                    color = Color(0xFF1F1E1B),
                     topLeft = Offset(x, y),
                     size = Size(cell, cellH),
-                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(3f, 3f),
-                    style = Stroke(width = 2f)
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f),
+                    style = Stroke(width = 1.4f)
                 )
             }
         }
@@ -405,7 +410,7 @@ fun WaterfallChart(
 
             // 数值标签
             val valueText = (if (st.total) "" else if (st.value >= 0) "+" else "−") +
-                    kotlin.math.abs(st.value).toInt().toString()
+                    money0(kotlin.math.abs(st.value))
             drawContext.canvas.nativeCanvas.apply {
                 val paint = android.graphics.Paint().apply {
                     color = ink.toArgb()

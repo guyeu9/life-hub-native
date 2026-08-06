@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -81,22 +83,11 @@ fun MediaScreen() {
             contentPadding = PaddingValues(top = 24.dp, bottom = 24.dp)
         ) {
             item {
-                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                    AnimatedHeader(
-                        title = "书影音收藏",
-                        subtitle = "看过听过的东西，值得留一句话。"
-                    )
-                    FilledIconButton(
-                        onClick = {
-                            context.vibrateSuccess()
-                            showAdd = true
-                        },
-                        modifier = Modifier.size(40.dp),
-                        shape = RoundedCornerShape(10.dp),
-                        colors = IconButtonDefaults.filledIconButtonColors(containerColor = Clay)
-                    ) { Text("+", color = PaperCard, style = MaterialTheme.typography.titleLarge) }
-
-                }
+                AnimatedHeader(
+                    title = "书影音收藏",
+                    subtitle = "看过听过的东西，值得留一句话。",
+                    eyebrow = "Library"
+                )
             }
 
             item { MediaMetrics(state) }
@@ -108,7 +99,6 @@ fun MediaScreen() {
                             Text("${todayYear()} 年完成分布", style = MaterialTheme.typography.titleMedium, color = Ink)
                             Text("按完成月份统计", style = MaterialTheme.typography.labelSmall, color = InkSoft)
                         }
-                        Text("共 ${state.monthBars.sum()} 条", style = MaterialTheme.typography.labelSmall, color = Clay)
                     }
                     Spacer(Modifier.height(10.dp))
                     MonthBarChart(values = state.monthBars, color = Clay)
@@ -148,18 +138,33 @@ fun MediaScreen() {
                 }
             }
 
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = { showAdd = true }) {
+                        Text("+ 添加收藏", color = Clay, style = MaterialTheme.typography.labelMedium)
+                    }
+                }
+            }
+
             if (list.isEmpty()) {
                 item { EmptyState("这里还是空的") }
             } else if (viewMode == MediaViewMode.WALL) {
                 item {
-                    Text("收藏架 · ${list.size} 条", style = MaterialTheme.typography.titleMedium, color = Ink)
+                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                        Text("收藏架 · ${list.size} 条", style = MaterialTheme.typography.titleMedium, color = Ink)
+                    }
                 }
                 item {
                     WallGrid(list) { editing = it }
                 }
             } else {
                 item {
-                    Text("列表 · ${list.size} 条", style = MaterialTheme.typography.titleMedium, color = Ink)
+                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                        Text("列表 · ${list.size} 条", style = MaterialTheme.typography.titleMedium, color = Ink)
+                    }
                 }
                 itemsIndexed(list) { index, item ->
                     MediaRow(
@@ -254,36 +259,39 @@ fun MediaScreen() {
 
 @Composable
 private fun MediaMetrics(s: MediaUiState) {
-    Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp)) {
-        Metric("${todayYear()} 年读完", s.yearBook.toString(), "本", "书", Clay)
-        Metric("${todayYear()} 年看完", s.yearMovie.toString(), "部", "影视", Sage)
-    }
-    Spacer(Modifier.height(8.dp))
-    Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp)) {
-        Metric("${todayYear()} 年收藏", s.yearMusic.toString(), "张", "音乐", Ink)
-        Metric("平均评分", if (s.avgRating > 0f) String.format("%.1f", s.avgRating) else "—", "/5", "${s.ratedCount} 条已评分", Amber)
-    }
-}
-
-@Composable
-private fun RowScope.Metric(label: String, value: String, unit: String, desc: String, color: Color) {
     Surface(
-        modifier = Modifier.weight(1f),
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(10.dp),
         color = PaperCard,
         border = androidx.compose.foundation.BorderStroke(1.dp, Line)
     ) {
-        Column(Modifier.padding(12.dp)) {
-            Text(label, style = MaterialTheme.typography.labelSmall, color = InkSoft)
-            Spacer(Modifier.height(4.dp))
-            Row(verticalAlignment = Alignment.Bottom) {
-                AnimatedNumber(value = value, color = color)
-                Spacer(Modifier.width(3.dp))
-                Text(unit, style = MaterialTheme.typography.labelSmall, color = InkSoft)
-            }
-            Spacer(Modifier.height(2.dp))
-            Text(desc, style = MaterialTheme.typography.labelSmall, color = InkSoft)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Metric("${todayYear()} 年读完", s.yearBook.toString(), "本", "书", Clay, Modifier.weight(1f))
+            VerticalDivider(thickness = 0.5.dp, color = Line)
+            Metric("${todayYear()} 年看完", s.yearMovie.toString(), "部", "影视", Sage, Modifier.weight(1f))
+            VerticalDivider(thickness = 0.5.dp, color = Line)
+            Metric("${todayYear()} 年收藏", s.yearMusic.toString(), "张", "音乐", Ink, Modifier.weight(1f))
+            VerticalDivider(thickness = 0.5.dp, color = Line)
+            Metric("平均评分", if (s.avgRating > 0f) String.format("%.1f", s.avgRating) else "—", "/5", "${s.ratedCount} 条已评分", Gold, Modifier.weight(1f))
         }
+    }
+}
+
+@Composable
+private fun RowScope.Metric(label: String, value: String, unit: String, desc: String, color: Color, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.padding(vertical = 12.dp, horizontal = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = InkSoft, textAlign = TextAlign.Center)
+        Spacer(Modifier.height(4.dp))
+        Row(verticalAlignment = Alignment.Bottom) {
+            AnimatedNumber(value = value, color = color)
+            Spacer(Modifier.width(3.dp))
+            Text(unit, style = MaterialTheme.typography.labelSmall, color = InkSoft)
+        }
+        Spacer(Modifier.height(2.dp))
+        Text(desc, style = MaterialTheme.typography.labelSmall, color = InkSoft, textAlign = TextAlign.Center)
     }
 }
 
@@ -346,52 +354,75 @@ private fun WallGrid(items: List<MediaItemEntity>, onOpen: (MediaItemEntity) -> 
 @Composable
 private fun CoverCard(item: MediaItemEntity, onOpen: (MediaItemEntity) -> Unit) {
     val color = parseColor(item.color, Clay)
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
+            .aspectRatio(3f / 4.2f)
             .clip(RoundedCornerShape(8.dp))
             .pressScale { onOpen(item) }
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(3f / 4.2f)
-                .clip(RoundedCornerShape(8.dp)),
-            contentAlignment = Alignment.Center
-        ) {
-            CoverImage(
-                cover = item.cover,
-                modifier = Modifier.fillMaxSize(),
-                fallback = {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Brush.linearGradient(listOf(color, color.copy(alpha = 0.73f)))),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            item.title.take(1),
-                            color = PaperCard,
-                            fontSize = 28.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
+        CoverImage(
+            cover = item.cover,
+            modifier = Modifier.fillMaxSize(),
+            fallback = {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Brush.linearGradient(listOf(color, color.copy(alpha = 0.73f)))),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        item.title.take(1),
+                        color = PaperCard,
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
+            }
+        )
+        // 左上角：类型·状态徽章
+        Surface(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(6.dp),
+            shape = RoundedCornerShape(4.dp),
+            color = Color.Black.copy(alpha = 0.5f)
+        ) {
+            Text(
+                "${typeLabel(item.type)}·${statusLabel(item.status)}",
+                style = MaterialTheme.typography.labelSmall,
+                color = PaperCard,
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
             )
         }
-        Spacer(Modifier.height(4.dp))
-        Text(
-            item.title,
-            style = MaterialTheme.typography.labelSmall,
-            color = Ink,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("${typeLabel(item.type)} · ${statusLabel(item.status)}", style = MaterialTheme.typography.labelSmall, color = InkSoft)
-        }
-        if (item.rating > 0) {
-            Text(stars(item.rating), style = MaterialTheme.typography.labelSmall, color = Amber)
+        // 底部：渐变叠层 + 标题 + 评分
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color.Transparent, Color(0xFF14120F).copy(alpha = 0.86f))
+                    )
+                )
+                .padding(8.dp)
+        ) {
+            Column {
+                Text(
+                    item.title,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = PaperCard,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    fontWeight = FontWeight.Medium
+                )
+                Spacer(Modifier.height(2.dp))
+                if (item.rating > 0) {
+                    Text(stars5(item.rating), style = MaterialTheme.typography.labelSmall, color = Gold)
+                } else {
+                    Text("未评分", style = MaterialTheme.typography.labelSmall, color = PaperCard.copy(alpha = 0.7f))
+                }
+            }
         }
     }
 }
@@ -405,40 +436,44 @@ private fun MediaRow(
 ) {
     val color = parseColor(item.color, Clay)
     var showDeleteConfirm by remember { mutableStateOf(false) }
-    Surface(
-        modifier = modifier.fillMaxWidth().clickable { onOpen(item) },
-        shape = RoundedCornerShape(8.dp),
-        color = PaperCard
+    Column(
+        modifier = modifier.fillMaxWidth().clickable { onOpen(item) }
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp, horizontal = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(Modifier.size(10.dp).clip(RoundedCornerShape(50)).background(color))
+            Box(Modifier.size(9.dp).clip(RoundedCornerShape(50)).background(color))
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(item.title, style = MaterialTheme.typography.bodyMedium, color = Ink, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                     Spacer(Modifier.width(8.dp))
-                    if (item.rating > 0) Text(stars(item.rating), style = MaterialTheme.typography.labelSmall, color = Amber)
+                    Text(stars5(item.rating), style = MaterialTheme.typography.labelSmall, color = Gold)
                 }
                 Row(Modifier.padding(top = 3.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Tag(typeLabel(item.type), Clay)
-                    Tag(statusLabel(item.status), if (item.status == "done") Sage else if (item.status == "doing") Clay else InkSoft)
+                    Tag(typeLabel(item.type), ClaySoft, Clay)
+                    Tag(
+                        text = statusLabel(item.status),
+                        bg = if (item.status == "done") SageSoft else if (item.status == "doing") ClaySoft else Line2,
+                        fg = if (item.status == "done") Sage else if (item.status == "doing") Clay else InkSoft
+                    )
                     if (item.finishDate.isNotBlank()) Text(cnDateKey(item.finishDate), style = MaterialTheme.typography.labelSmall, color = InkSoft)
                     if (item.review.isNotBlank()) Text(item.review, style = MaterialTheme.typography.labelSmall, color = InkSoft, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                 }
             }
             val ctx = LocalContext.current
-            TextButton(
+            IconButton(
                 onClick = {
                     ctx.vibrateMedium()
                     showDeleteConfirm = true
-                }
+                },
+                modifier = Modifier.size(32.dp)
             ) {
-                Text("删除", style = MaterialTheme.typography.labelSmall, color = Danger)
+                Icon(Icons.Default.Delete, contentDescription = "删除", tint = Danger)
             }
         }
+        HorizontalDivider(thickness = 1.dp, color = Line)
     }
 
     if (showDeleteConfirm) {
@@ -453,16 +488,16 @@ private fun MediaRow(
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirm = false }) { Text("取消", color = InkSoft) }
             },
-            title = { Text("确认删除", color = Ink) },
-            text = { Text("确定要删除这条记录吗？", color = InkSoft) }
+            title = { Text("删除收藏", color = Ink) },
+            text = { Text("确定要删掉这条记录吗？删除后无法撤销。", color = InkSoft) }
         )
     }
 }
 
 @Composable
-private fun Tag(text: String, color: Color) {
-    Surface(shape = RoundedCornerShape(4.dp), color = color.copy(alpha = 0.15f)) {
-        Text(text, style = MaterialTheme.typography.labelSmall, color = color, modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp))
+private fun Tag(text: String, bg: Color, fg: Color) {
+    Surface(shape = RoundedCornerShape(4.dp), color = bg) {
+        Text(text, style = MaterialTheme.typography.labelSmall, color = fg, modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp))
     }
 }
 
@@ -659,8 +694,8 @@ private fun MediaEditDialog(
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirm = false }) { Text("取消", color = InkSoft) }
             },
-            title = { Text("确认删除", color = Ink) },
-            text = { Text("确定要删除这条记录吗？", color = InkSoft) }
+            title = { Text("删除收藏", color = Ink) },
+            text = { Text("确定要删掉这条记录吗？删除后无法撤销。", color = InkSoft) }
         )
     }
 }
@@ -712,7 +747,10 @@ private fun StarPicker(value: Float, onPick: (Float) -> Unit) {
 @Composable
 private fun fieldColors() = OutlinedTextFieldDefaults.colors(focusedBorderColor = Clay, unfocusedBorderColor = Line)
 
-private fun stars(n: Float): String = "★".repeat(n.toInt())
+private fun stars5(rating: Float): String {
+    val n = rating.toInt()
+    return "★".repeat(n) + "☆".repeat(5 - n)
+}
 
 private fun typeLabel(t: String) = when (t) { "book" -> "书"; "movie" -> "影"; "music" -> "音"; else -> t }
 private fun statusLabel(s: String) = when (s) { "want" -> "想看"; "doing" -> "在看"; "done" -> "看完"; else -> s }

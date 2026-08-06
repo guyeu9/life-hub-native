@@ -86,7 +86,7 @@ fun SettingsScreen(
                         StatLine("收藏", state.mediaCount, "条")
                         Divider(Modifier.padding(vertical = 10.dp), color = Line)
                         Text(
-                            "自上次备份新增：${state.pendingCount} 条",
+                            "待备份新增：${state.pendingCount} 条",
                             style = MaterialTheme.typography.bodyMedium,
                             color = InkSoft
                         )
@@ -130,7 +130,7 @@ fun SettingsScreen(
 
                 item {
                     Text(
-                        "所有数据只存在这台设备的应用存储里，换设备或清除应用数据后不会保留。请定期导出备份。",
+                        "所有数据只存在这台设备的应用存储里，不会上传到任何服务器。换设备或清除应用数据后不会保留。请定期导出备份。",
                         style = MaterialTheme.typography.bodySmall,
                         color = InkSoft,
                         lineHeight = MaterialTheme.typography.bodySmall.lineHeight

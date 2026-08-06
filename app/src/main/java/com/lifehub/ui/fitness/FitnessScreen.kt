@@ -6,13 +6,18 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -32,7 +37,6 @@ import com.lifehub.ui.components.EmptyState
 import com.lifehub.ui.components.LifeCard
 import com.lifehub.ui.components.SuccessButton
 import com.lifehub.ui.components.animateItemSlide
-import com.lifehub.ui.components.hapticClick
 import com.lifehub.ui.components.toggleClick
 import com.lifehub.ui.theme.*
 import com.lifehub.util.cnDateKey
@@ -65,19 +69,23 @@ fun FitnessScreen() {
             contentPadding = PaddingValues(top = 24.dp, bottom = 24.dp)
         ) {
             item {
-                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                    AnimatedHeader("减脂健身")
-                    OutlinedButton(
-                        onClick = {
-                            context.vibrateLight()
-                            showProfile = true
-                        }
-                    ) { Text("身高/目标/基代") }
-                }
+                AnimatedHeader(
+                    "减脂健身",
+                    subtitle = "体重会波动，七日均线不会骗人。",
+                    eyebrow = "Body"
+                )
             }
 
             item { FitnessMetrics(state) }
-            item { GoalProgress(state) }
+            item {
+                GoalProgress(
+                    state,
+                    onProfileClick = {
+                        context.vibrateLight()
+                        showProfile = true
+                    }
+                )
+            }
 
             if (state.logs.isNotEmpty()) {
                 item {
@@ -132,7 +140,10 @@ fun FitnessScreen() {
             }
 
             item {
-                Text("历史记录", style = MaterialTheme.typography.titleMedium, color = Ink)
+                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.Bottom) {
+                    Text("历史记录", style = MaterialTheme.typography.titleMedium, color = Ink)
+                    Text("共 ${state.logs.size} 天", style = MaterialTheme.typography.labelSmall, color = InkSoft)
+                }
                 Spacer(Modifier.height(8.dp))
             }
             if (state.logs.isEmpty()) {
@@ -209,7 +220,7 @@ private fun FitnessMetrics(state: FitnessUiState) {
     Spacer(Modifier.height(8.dp))
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         MetricCell("BMI", if (bmi > 0) "%.1f".format(bmi) else "—", "", if (bmi > 0) "${lv.first} · 身高 ${state.profile.height.toInt()}cm" else "先填身高", color = lv.second)
-        MetricCell("距目标", if (last != null && tgt > 0) "%.1f".format(kotlin.math.abs(last.weight - tgt)) else "—", "kg", "目标 ${tgt}kg", color = Sage)
+        MetricCell("距目标", if (last != null && tgt > 0) "%.1f".format(kotlin.math.abs(last.weight - tgt)) else "—", "kg", "目标 ${tgt.toInt()}kg", color = Sage)
     }
     Spacer(Modifier.height(8.dp))
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -255,7 +266,7 @@ private fun RowScope.MetricCell(label: String, value: String, unit: String, desc
 }
 
 @Composable
-private fun GoalProgress(state: FitnessUiState) {
+private fun GoalProgress(state: FitnessUiState, onProfileClick: () -> Unit) {
     val last = state.logs.lastOrNull()
     val start = if (state.profile.startWeight > 0) state.profile.startWeight else state.logs.firstOrNull()?.weight ?: 0.0
     val tgt = state.profile.targetWeight
@@ -263,18 +274,32 @@ private fun GoalProgress(state: FitnessUiState) {
     val doneKg = if (last != null && start > 0) kotlin.math.abs(start - last.weight) else 0.0
     val prog = (doneKg / totalNeed).coerceIn(0.0, 1.0)
     LifeCard {
+        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+            Text("目标进度", style = MaterialTheme.typography.titleMedium, color = Ink)
+            OutlinedButton(onClick = onProfileClick) { Text("身高/目标/基代") }
+        }
+        Spacer(Modifier.height(8.dp))
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
             Text("起点 ${if (start > 0) "%.1f".format(start) else "—"} kg", style = MaterialTheme.typography.labelMedium, color = InkSoft)
             Text("已完成 %.1f kg（%d%%）".format(doneKg, (prog * 100).toInt()), style = MaterialTheme.typography.labelMedium, color = Sage, fontWeight = FontWeight.SemiBold)
-            Text("目标 ${tgt}kg", style = MaterialTheme.typography.labelMedium, color = InkSoft)
+            Text("目标 ${tgt.toInt()}kg", style = MaterialTheme.typography.labelMedium, color = InkSoft)
         }
         Spacer(Modifier.height(8.dp))
-        LinearProgressIndicator(
-            progress = { prog.toFloat() },
-            modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
-            color = Clay,
-            trackColor = Line
-        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(8.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(Line)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(prog.toFloat())
+                    .height(8.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Brush.horizontalGradient(listOf(Sage, Clay)))
+            )
+        }
     }
 }
 
@@ -353,22 +378,44 @@ private fun WeekPlan(
     val names = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         plan.forEachIndexed { i, d ->
+            val bg = when {
+                d.done -> SageSoft
+                i == todayIdx -> ClayLight.copy(alpha = 0.18f)
+                else -> PaperCard
+            }
+            val bd = when {
+                d.done -> Sage.copy(alpha = 0.3f)
+                i == todayIdx -> Clay
+                else -> Line
+            }
             Surface(
                 modifier = Modifier.fillMaxWidth().toggleClick { onToggle(i, !d.done) },
                 shape = RoundedCornerShape(8.dp),
-                color = if (i == todayIdx) ClayLight.copy(alpha = 0.18f) else PaperCard,
-                border = androidx.compose.foundation.BorderStroke(1.dp, if (i == todayIdx) Clay else Line)
+                color = bg,
+                border = androidx.compose.foundation.BorderStroke(1.dp, bd)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Checkbox(
-                        checked = d.done,
-                        onCheckedChange = null,
-                        modifier = Modifier.toggleClick { onToggle(i, !d.done) },
-                        colors = CheckboxDefaults.colors(checkedColor = Sage)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(22.dp)
+                            .clip(CircleShape)
+                            .background(if (d.done) Sage else Color.Transparent)
+                            .border(1.dp, if (d.done) Sage else Line, CircleShape)
+                            .toggleClick { onToggle(i, !d.done) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (d.done) {
+                            Icon(
+                                Icons.Default.Check,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                    }
                     Spacer(Modifier.width(8.dp))
                     Column(Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -420,17 +467,26 @@ private fun HistoryRow(
                         if (log.intake > 0) Text("摄入 ${log.intake.toInt()}", style = MaterialTheme.typography.labelSmall, color = InkSoft)
                         if (log.burn > 0) Text("运动 ${log.burn.toInt()}", style = MaterialTheme.typography.labelSmall, color = InkSoft)
                         if (log.intake > 0) {
-                            val color = if (def > 0) Sage else Danger
-                            Text("缺口 ${if (def > 0) "+" else ""}$def", style = MaterialTheme.typography.labelSmall, color = color)
+                            val bgColor = if (def > 0) SageSoft else DangerSoft
+                            val fgColor = if (def > 0) Sage else Danger
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = bgColor
+                            ) {
+                                Text(
+                                    "缺口 ${if (def > 0) "+" else ""}$def",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = fgColor,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
                         }
                     }
                 }
             }
-            Text(
-                "🗑",
-                modifier = Modifier.hapticClick { onDelete() }.padding(4.dp),
-                style = MaterialTheme.typography.labelMedium
-            )
+            IconButton(onClick = { onDelete() }) {
+                Icon(Icons.Default.Delete, contentDescription = "删除", tint = Danger)
+            }
         }
     }
 }
@@ -521,7 +577,7 @@ private fun bmiLevel(bmi: Double): Pair<String, Color> = when {
     bmi <= 0 -> "—" to InkSoft
     bmi < 18.5 -> "偏瘦" to Slate
     bmi < 24 -> "正常" to Sage
-    bmi < 28 -> "偏胖" to Amber
+    bmi < 28 -> "超重" to Amber
     else -> "肥胖" to Danger
 }
 

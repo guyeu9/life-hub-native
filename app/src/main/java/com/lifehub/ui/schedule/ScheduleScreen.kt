@@ -8,13 +8,16 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -91,7 +94,7 @@ fun ScheduleScreen() {
         AlertDialog(
             onDismissRequest = { deleteTarget = null },
             title = { Text("删除日程") },
-            text = { Text("确定要删除「${target.title}」吗？") },
+            text = { Text("确定删除这条日程？") },
             confirmButton = {
                 TextButton(onClick = {
                     ctx.vibrateMedium()
@@ -111,7 +114,7 @@ fun ScheduleScreen() {
             verticalArrangement = Arrangement.spacedBy(14.dp),
             contentPadding = PaddingValues(top = 24.dp, bottom = 24.dp)
         ) {
-            item { AnimatedHeader(title = "日程统筹", subtitle = "昨天没做完的，今天照样在这儿等你。") }
+            item { AnimatedHeader(eyebrow = "Schedule", title = "日程统筹", subtitle = "昨天没做完的，今天照样在这儿等你。") }
             item { ScheduleMetrics(state) }
 
             item {
@@ -309,12 +312,12 @@ private fun TagSelector(tags: List<String>, selected: String, onSelect: (String)
 private fun ScopeSegmented(selected: PlanScope, onSelect: (PlanScope) -> Unit) {
     val ctx = LocalContext.current
     val opts = listOf(
-        PlanScope.TODAY to "今天/逾期",
+        PlanScope.TODAY to "今天 / 逾期",
         PlanScope.WEEK to "本周",
         PlanScope.TODO to "全部未完成",
         PlanScope.DONE to "已完成"
     )
-    Row(Modifier.clip(RoundedCornerShape(8.dp)).border(1.dp, Line, RoundedCornerShape(8.dp))) {
+    Row(Modifier.clip(RoundedCornerShape(6.dp)).border(1.dp, Line, RoundedCornerShape(6.dp))) {
         opts.forEach { (s, label) ->
             val on = s == selected
             Box(
@@ -351,7 +354,7 @@ private fun ScheduleRowCard(
         else -> InkSoft
     }
     Surface(
-        modifier = modifier.fillMaxWidth().alpha(if (item.done) 0.7f else 1f),
+        modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp),
         color = PaperCard
     ) {
@@ -359,17 +362,30 @@ private fun ScheduleRowCard(
             modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp, horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Checkbox(
-                checked = item.done,
-                onCheckedChange = { onToggle(it) },
-                colors = CheckboxDefaults.colors(checkedColor = Sage)
-            )
+            Box(
+                modifier = Modifier
+                    .size(22.dp)
+                    .clip(CircleShape)
+                    .background(if (item.done) Sage else Color.White)
+                    .border(1.6.dp, if (item.done) Sage else InkFaint, CircleShape)
+                    .clickable { onToggle(!item.done) },
+                contentAlignment = Alignment.Center
+            ) {
+                if (item.done) {
+                    Icon(
+                        Icons.Default.Check,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+            }
             Spacer(Modifier.width(8.dp))
             Column(Modifier.weight(1f)) {
                 Text(
                     item.title,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = if (item.done) InkSoft else if (row.overdue) Danger else Ink,
+                    color = if (item.done) InkFaint else if (row.overdue) Danger else Ink,
                     fontWeight = if (row.overdue) FontWeight.SemiBold else FontWeight.Normal,
                     textDecoration = if (item.done) TextDecoration.LineThrough else TextDecoration.None
                 )
@@ -400,7 +416,9 @@ private fun ScheduleRowCard(
                     }
                 }
             }
-            Text("×", modifier = Modifier.hapticClick { onDelete() }.padding(8.dp), style = MaterialTheme.typography.titleMedium, color = InkSoft)
+            IconButton(onClick = { onDelete() }) {
+                Icon(Icons.Default.Delete, contentDescription = "删除", tint = Danger)
+            }
         }
     }
 }

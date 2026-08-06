@@ -10,6 +10,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -32,7 +34,7 @@ import com.lifehub.data.SettingsRepository
 import com.lifehub.data.entity.LedgerEntity
 import com.lifehub.ui.components.*
 import com.lifehub.ui.theme.*
-import com.lifehub.util.fullTime
+import com.lifehub.util.cnDate
 import com.lifehub.util.money0
 import com.lifehub.util.money2
 import com.lifehub.util.vibrateLight
@@ -99,7 +101,7 @@ fun LedgerScreen() {
             verticalArrangement = Arrangement.spacedBy(14.dp),
             contentPadding = PaddingValues(top = 24.dp, bottom = 24.dp)
         ) {
-            item { AnimatedHeader("记账理财") }
+            item { AnimatedHeader("记账理财", eyebrow = "Money", subtitle = "收入、返利、支出三条线，实际结余才是真实到手。") }
 
             // 顶部 5 指标卡（对齐网页 .metrics）
             item { LedgerMetrics(summary) }
@@ -172,6 +174,21 @@ fun LedgerScreen() {
                     },
                     modifier = Modifier.animateItemSlide(index)
                 )
+            }
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("共 ${filtered.size} 条", style = MaterialTheme.typography.labelMedium, color = InkSoft)
+                    val sum = filtered.sumOf { if (it.type == "expense") -it.amount else it.amount }
+                    Text(
+                        "净额 ${if (sum >= 0) "+" else "−"}${money2(kotlin.math.abs(sum))} 元（返利计入正向）",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (sum >= 0) Sage else Danger,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
             if (filtered.isEmpty()) {
                 item {
@@ -370,13 +387,19 @@ private fun CategoryDonut(byCategory: List<Pair<String, Double>>) {
     val palette = listOf(Clay, Sage, Amber, Slate, Danger, ClayLight, SageLight)
     val total = byCategory.sumOf { it.second }.coerceAtLeast(0.0001)
     LifeCard {
-        Text("支出分类", style = MaterialTheme.typography.titleMedium, color = Ink)
+        Text("消费结构", style = MaterialTheme.typography.titleMedium, color = Ink)
         Spacer(Modifier.height(12.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             DonutChart(
                 segments = byCategory.mapIndexed { i, pair -> pair.second.toFloat() to palette[i % palette.size] },
                 trackColor = Line,
-                modifier = Modifier.size(120.dp)
+                modifier = Modifier.size(120.dp),
+                centerLabel = {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(money0(total), style = MaterialTheme.typography.labelLarge, color = Ink, fontWeight = FontWeight.SemiBold)
+                        Text("CNY", style = MaterialTheme.typography.labelSmall, color = InkSoft)
+                    }
+                }
             )
             Spacer(Modifier.width(12.dp))
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -544,11 +567,7 @@ private fun LegendDot(label: String, color: Color) {
 private fun LedgerRow(item: LedgerEntity, color: Color, onDelete: () -> Unit, modifier: Modifier = Modifier) {
     val sign = when (item.type) { "income" -> "+"; "rebate" -> "+"; else -> "-" }
     val colorForSign = when (item.type) { "income" -> Sage; "rebate" -> Amber; else -> Clay }
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        color = PaperCard,
-        shape = RoundedCornerShape(8.dp)
-    ) {
+    Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp, horizontal = 4.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -572,23 +591,21 @@ private fun LedgerRow(item: LedgerEntity, color: Color, onDelete: () -> Unit, mo
                     Surface(shape = RoundedCornerShape(4.dp), color = tagColor.copy(alpha = 0.15f)) {
                         Text(item.category, style = MaterialTheme.typography.labelSmall, color = tagColor, modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp))
                     }
-                    Text(fullTime(item.date), style = MaterialTheme.typography.labelSmall, color = InkSoft)
+                    Text(cnDate(item.date), style = MaterialTheme.typography.labelSmall, color = InkSoft)
                     if (item.type == "rebate" && item.rebateOf > 0) {
-                        val rate = (item.amount / item.rebateOf * 100).toInt().coerceIn(0, 100)
-                        Text("对应消费 ${money2(item.rebateOf)} · 返 ${rate}%", style = MaterialTheme.typography.labelSmall, color = Amber)
+                        val rate = (item.amount / item.rebateOf * 100).coerceIn(0.0, 100.0)
+                        Text("对应消费 ${money2(item.rebateOf)} · 返 ${"%.1f".format(rate)}%", style = MaterialTheme.typography.labelSmall, color = Amber)
                     }
                 }
             }
             Spacer(Modifier.width(8.dp))
             Text("$sign${money2(item.amount)}", style = MaterialTheme.typography.labelLarge, color = colorForSign)
             Spacer(Modifier.width(8.dp))
-            Text(
-                "删除",
-                modifier = Modifier.hapticClick { onDelete() },
-                style = MaterialTheme.typography.labelMedium,
-                color = Danger
-            )
+            IconButton(onClick = { onDelete() }) {
+                Icon(Icons.Default.Delete, contentDescription = "删除", tint = Danger)
+            }
         }
+        HorizontalDivider(thickness = 1.dp, color = Line)
     }
 }
 
@@ -782,13 +799,13 @@ private fun FilterBar(
                 value = filter.search,
                 onValueChange = { onFilterChange(filter.copy(search = it)) },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("搜索备注或分类") },
+                placeholder = { Text("输入关键词") },
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Clay, unfocusedBorderColor = Line)
             )
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 TextButton(onClick = onReset) {
-                    Text("重置筛选", color = Clay, style = MaterialTheme.typography.labelMedium)
+                    Text("重置", color = Clay, style = MaterialTheme.typography.labelMedium)
                 }
             }
         }
