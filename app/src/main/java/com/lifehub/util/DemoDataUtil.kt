@@ -57,17 +57,19 @@ object DemoDataUtil {
         val h1 = HabitEntity(name = "早睡（23:30 前）", type = "check", target = 1, unit = "", color = "#5D7561", createdAt = dayOffsetMillis(-30))
         val h2 = HabitEntity(name = "喝水", type = "count", target = 8, unit = "杯", color = "#4A6478", createdAt = dayOffsetMillis(-30))
         val h3 = HabitEntity(name = "阅读", type = "value", target = 30, unit = "分钟", color = "#A2543C", createdAt = dayOffsetMillis(-30))
-        val habitIds = c.habit.insertAllHabits(listOf(h1, h2, h3))
+        val id1 = c.habit.insertHabit(h1)
+        val id2 = c.habit.insertHabit(h2)
+        val id3 = c.habit.insertHabit(h3)
         val logs = mutableListOf<HabitLogEntity>()
         for (i in 1..29) {
             val day = dayOffsetKey(-i)
-            if (prand(i, 11.3) > 0.28) logs.add(HabitLogEntity(habitId = habitIds[0], dateKey = day, done = true, value = 1.0))
-            logs.add(HabitLogEntity(habitId = habitIds[1], dateKey = day, done = false, value = (4 + prand(i, 7.7) * 5).roundToInt().toDouble()))
+            if (prand(i, 11.3) > 0.28) logs.add(HabitLogEntity(habitId = id1, dateKey = day, done = true, value = 1.0))
+            logs.add(HabitLogEntity(habitId = id2, dateKey = day, done = false, value = (4 + prand(i, 7.7) * 5).roundToInt().toDouble()))
             val v = (prand(i, 3.1) * 46).roundToInt()
-            if (v > 6) logs.add(HabitLogEntity(habitId = habitIds[2], dateKey = day, done = v >= 30, value = v.toDouble()))
+            if (v > 6) logs.add(HabitLogEntity(habitId = id3, dateKey = day, done = v >= 30, value = v.toDouble()))
         }
         // 今天喝水只记 3 杯，留一个未完成
-        logs.add(HabitLogEntity(habitId = habitIds[1], dateKey = todayKey(), done = false, value = 3.0))
+        logs.add(HabitLogEntity(habitId = id2, dateKey = todayKey(), done = false, value = 3.0))
         c.habit.insertAllLogs(logs)
 
         // 4. 身体记录（14 天，今天不预填）
