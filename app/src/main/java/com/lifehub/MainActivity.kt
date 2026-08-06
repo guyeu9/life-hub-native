@@ -26,6 +26,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
@@ -115,25 +116,31 @@ private fun LifeHubTopBar(
                         .background(Clay)
                 )
                 Spacer(Modifier.width(10.dp))
+                // 品牌名：serif 字体，对齐网页 .brand h1
                 Text(
                     "生活台",
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.displayMedium.copy(fontSize = 21.sp),
                     fontWeight = FontWeight.SemiBold,
                     color = Ink
                 )
                 Spacer(Modifier.width(8.dp))
+                // 副标题：全大写 + 宽字距，对齐网页 .brand .sub
                 Text(
-                    "Life Desk",
+                    "LIFE DESK",
                     style = MaterialTheme.typography.labelSmall,
                     color = InkSoft,
-                    letterSpacing = MaterialTheme.typography.labelSmall.letterSpacing
+                    letterSpacing = 1.6.sp
                 )
                 Spacer(Modifier.width(14.dp))
-                Text(
-                    todayTopDate(),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = InkSoft
-                )
+                // 日期：M月D日 加粗 + 周X，对齐网页 .topdate b
+                val cal = Calendar.getInstance()
+                val week = "日一二三四五六"
+                val dateStr = SimpleDateFormat("M月d日", Locale.CHINA).format(cal.time)
+                val wk = week[cal.get(Calendar.DAY_OF_WEEK) - 1]
+                Row {
+                    Text(dateStr, style = MaterialTheme.typography.labelMedium, color = Ink, fontWeight = FontWeight.SemiBold)
+                    Text(" · 周$wk", style = MaterialTheme.typography.labelMedium, color = InkSoft)
+                }
             }
         },
         actions = {
@@ -161,14 +168,9 @@ private fun LifeHubTopBar(
             }
         },
         colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = PaperBg,
-            scrolledContainerColor = PaperBg
+            // 半透毛玻璃感：对齐网页 .topbar rgba(244,242,237,.92)
+            containerColor = PaperBg.copy(alpha = 0.92f),
+            scrolledContainerColor = PaperBg.copy(alpha = 0.92f)
         )
     )
-}
-
-private fun todayTopDate(): String {
-    val cal = Calendar.getInstance()
-    val week = "日一二三四五六"
-    return SimpleDateFormat("M月d日", Locale.CHINA).format(cal.time) + " · 周" + week[cal.get(Calendar.DAY_OF_WEEK) - 1]
 }

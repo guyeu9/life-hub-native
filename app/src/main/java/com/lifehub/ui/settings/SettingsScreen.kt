@@ -3,6 +3,8 @@
 package com.lifehub.ui.settings
 
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -27,7 +29,11 @@ import com.lifehub.util.vibrateMedium
 import com.lifehub.util.vibrateSuccess
 import com.lifehub.viewmodel.SettingsViewModel
 import com.lifehub.viewmodel.SettingsViewModelFactory
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 @Composable
 fun SettingsScreen(
@@ -45,6 +51,41 @@ fun SettingsScreen(
     var showClearConfirm by remember { mutableStateOf(false) }
     var showDemoConfirm by remember { mutableStateOf(false) }
     var showFields by remember { mutableStateOf(false) }
+
+    // Excel/CSV 导出：生成与网页同字段的 CSV（带 BOM，Excel 可直接打开）
+    val csvLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/csv")
+    ) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        scope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                try {
+                    val rows = app.container.ledger.getAllOnce()
+                    val typeNames = mapOf("expense" to "支出", "income" to "收入", "rebate" to "返利")
+                    val sb = StringBuilder()
+                    sb.append("\ufeff") // UTF-8 BOM
+                    sb.append("日期,类型,分类,金额(元),对应消费(元),返利率,备注\n")
+                    rows.sortedByDescending { it.date }.forEach { x ->
+                        val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.CHINA).format(java.util.Date(x.date))
+                        val amt = String.format("%.2f", x.amount)
+                        val base = if (x.type == "rebate" && x.rebateOf > 0) String.format("%.2f", x.rebateOf) else ""
+                        val rate = if (x.type == "rebate" && x.rebateOf > 0) String.format("%.1f%%", x.amount / x.rebateOf * 100) else ""
+                        fun csvCell(s: String) = "\"" + s.replace("\"", "\"\"") + "\""
+                        sb.append(csvCell(dateStr)).append(",")
+                        sb.append(csvCell(typeNames[x.type] ?: x.type)).append(",")
+                        sb.append(csvCell(x.category)).append(",")
+                        sb.append(csvCell(amt)).append(",")
+                        sb.append(csvCell(base)).append(",")
+                        sb.append(csvCell(rate)).append(",")
+                        sb.append(csvCell(x.note ?: "")).append("\n")
+                    }
+                    context.contentResolver.openOutputStream(uri)?.use { it.write(sb.toString().toByteArray(Charsets.UTF_8)) }
+                    true
+                } catch (e: Exception) { false }
+            }
+            Toast.makeText(context, if (ok) "CSV 已导出，可用 Excel/WPS 打开" else "导出失败", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -107,7 +148,7 @@ fun SettingsScreen(
                         }
                         SettingsButton("导出账本 Excel") {
                             context.vibrateLight()
-                            Toast.makeText(context, "Excel 导出功能开发中", Toast.LENGTH_SHORT).show()
+                            csvLauncher.launch("账本_${SimpleDateFormat("yyyyMMdd", Locale.CHINA).format(java.util.Date())}.csv")
                         }
                         SettingsButton("字段维护（分类 / 标签 / 优先级）") {
                             context.vibrateLight()

@@ -14,14 +14,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.size
 import com.lifehub.ui.theme.*
 
 /**
  * 通用卡片（纸面风：极小圆角、发丝线、不投影）
+ * borderColor: 可选自定义边框色（如随手记卡片用类型色染色）
  */
 @Composable
 fun LifeCard(
     modifier: Modifier = Modifier,
+    borderColor: Color = Line,
+    borderWidth: androidx.compose.ui.unit.Dp = 1.dp,
     content: @Composable ColumnScope.() -> Unit
 ) {
     Surface(
@@ -30,7 +34,7 @@ fun LifeCard(
         color = PaperCard,
         tonalElevation = 0.dp,
         shadowElevation = 0.dp,
-        border = androidx.compose.foundation.BorderStroke(1.dp, Line)
+        border = androidx.compose.foundation.BorderStroke(borderWidth, borderColor)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -152,19 +156,30 @@ fun AmountStepper(
 }
 
 /**
- * 空状态
+ * 空状态（可选前置图标）
  */
 @Composable
 fun EmptyState(
     text: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null
 ) {
-    Box(
+    Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 32.dp),
-        contentAlignment = Alignment.Center
+            .padding(vertical = 28.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
     ) {
+        icon?.let {
+            androidx.compose.material3.Icon(
+                imageVector = it,
+                contentDescription = null,
+                tint = Sage,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(Modifier.width(8.dp))
+        }
         Text(text = text, color = InkSoft, style = MaterialTheme.typography.bodyMedium)
     }
 }

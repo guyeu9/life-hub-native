@@ -3,6 +3,7 @@ package com.lifehub.ui.home
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.ui.layout.Layout
@@ -10,6 +11,9 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,11 +21,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lifehub.LifeHubApplication
 import com.lifehub.charts.RingProgress
@@ -157,7 +163,12 @@ fun HomeScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("📋", style = MaterialTheme.typography.titleMedium)
+                        Icon(
+                            imageVector = Icons.Default.Today,
+                            contentDescription = null,
+                            tint = Clay,
+                            modifier = Modifier.size(18.dp)
+                        )
                         Spacer(Modifier.width(6.dp))
                         Text(
                             text = "今天要处理",
@@ -177,7 +188,7 @@ fun HomeScreen(
             }
 
             if (state.todayItems.isEmpty()) {
-                item { EmptyState("今天该做的都做完了，去休息吧。") }
+                item { EmptyState("今天该做的都做完了，去休息吧。", icon = Icons.Default.Check) }
             } else {
                 itemsIndexed(state.todayItems) { index, item ->
                     TodayRow(
@@ -255,13 +266,13 @@ private fun LifeIndexCard(state: HomeUiState, vm: HomeViewModel) {
             RingProgress(
                 progress = progress,
                 color = ringColor,
-                trackColor = Line,
+                trackColor = Color(0xFFE9E3D6),
                 stroke = 14f,
                 modifier = Modifier.size(110.dp),
                 centerLabel = {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("$overall", style = MaterialTheme.typography.titleLarge, color = Ink)
-                        Text("INDEX", style = MaterialTheme.typography.labelSmall, color = InkSoft)
+                        Text("$overall", style = MaterialTheme.typography.headlineLarge, color = Ink)
+                        Text("INDEX", style = MaterialTheme.typography.labelSmall, color = InkSoft, letterSpacing = 2.sp)
                     }
                 }
             )
@@ -272,7 +283,7 @@ private fun LifeIndexCard(state: HomeUiState, vm: HomeViewModel) {
             ) {
                 Text(
                     text = levelText,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.headlineMedium,
                     color = Ink,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -287,18 +298,21 @@ private fun LifeIndexCard(state: HomeUiState, vm: HomeViewModel) {
                     label = "待办",
                     value = if (state.todoTotal == 0) "未设置" else "$todoPct%",
                     progress = if (state.todoTotal == 0) 0f else todoPct / 100f,
-                    color = if (state.todoTotal == 0) Line else Color(0xFF4A6478)
+                    color = if (state.todoTotal == 0) Line else Color(0xFF4A6478),
+                    configured = state.todoTotal > 0
                 )
                 DimRow(
                     label = "习惯",
                     value = if (state.habitTotal == 0) "未设置" else "$habitPct%",
                     progress = if (state.habitTotal == 0) 0f else habitPct / 100f,
-                    color = if (state.habitTotal == 0) Line else Color(0xFF5D7561)
+                    color = if (state.habitTotal == 0) Line else Color(0xFF5D7561),
+                    configured = state.habitTotal > 0
                 )
                 DimMoney(
                     label = "记账",
                     value = if (!state.ledgerConfigured) "未设置"
-                    else "收 ¥${money2(state.ledgerIncome)} · 支 ¥${money2(state.ledgerExpense)} · 记 ${state.ledgerCount} 笔 · 今日净支出 ¥${money2(state.ledgerNet)}"
+                    else "收 ¥${money2(state.ledgerIncome)} · 支 ¥${money2(state.ledgerExpense)} · 记 ${state.ledgerCount} 笔 · 今日净支出 ¥${money2(state.ledgerNet)}",
+                    configured = state.ledgerConfigured
                 )
                 DimMoney(
                     label = "身体",
@@ -306,7 +320,8 @@ private fun LifeIndexCard(state: HomeUiState, vm: HomeViewModel) {
                         if (state.weighedToday) {
                             "今日 ${state.todayWeight?.let { if (it % 1.0 == 0.0) it.toInt().toString() else "%.1f".format(it) } ?: "—"}kg" + (state.todayBodyFat?.let { " · ${kotlin.math.round(it).toInt()}% 脂" } ?: "")
                         } else "今日未称重"
-                    } else "未设置"
+                    } else "未设置",
+                    configured = state.lastWeight != null
                 )
             }
         }
@@ -314,8 +329,8 @@ private fun LifeIndexCard(state: HomeUiState, vm: HomeViewModel) {
 }
 
 @Composable
-private fun DimRow(label: String, value: String, progress: Float, color: Color) {
-    Column(Modifier.fillMaxWidth()) {
+private fun DimRow(label: String, value: String, progress: Float, color: Color, configured: Boolean = true) {
+    Column(Modifier.fillMaxWidth().then(if (configured) Modifier else Modifier.graphicsLayer { alpha = 0.45f })) {
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
             Text(label, style = MaterialTheme.typography.labelMedium, color = InkSoft)
             Text(value, style = MaterialTheme.typography.labelMedium, color = Ink)
@@ -331,8 +346,8 @@ private fun DimRow(label: String, value: String, progress: Float, color: Color) 
 }
 
 @Composable
-private fun DimMoney(label: String, value: String) {
-    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
+private fun DimMoney(label: String, value: String, configured: Boolean = true) {
+    Row(Modifier.fillMaxWidth().then(if (configured) Modifier else Modifier.graphicsLayer { alpha = 0.45f }), Arrangement.SpaceBetween) {
         Text(label, style = MaterialTheme.typography.labelMedium, color = InkSoft)
         Text(value, style = MaterialTheme.typography.labelMedium, color = Ink)
     }
@@ -354,7 +369,7 @@ private fun TodayRow(
                 if (item.type == "ledger_tip") onNavigate("ledger")
                 else if (item.type == "fitness_tip") onNavigate("fitness")
             },
-        color = if (item.overdue) Danger.copy(alpha = 0.045f) else Color.Transparent
+        color = Color.Transparent
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
@@ -433,7 +448,7 @@ private fun QuickLedgerCard(
         selectedCat = ""
     }
 
-    LifeCard {
+    LifeCard(borderColor = typeColor) {
         // 类型选择（彩色胶囊，对齐网页）
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -531,7 +546,7 @@ private fun QuickLedgerCard(
                             ctx.vibrateLight()
                             selectedCat = cat.name
                         },
-                    color = if (selected) catColor.copy(alpha = 0.12f) else PaperCard,
+                    color = if (selected) catColor.copy(alpha = 0.10f) else PaperCard,
                     border = androidx.compose.foundation.BorderStroke(1.5.dp, if (selected) catColor else Line)
                 ) {
                     Text(
@@ -743,7 +758,15 @@ private fun AmountStepper(
         }
         OutlinedTextField(
             value = value,
-            onValueChange = { onValueChange(it.filter { c -> c.isDigit() || c == '.' }) },
+            onValueChange = { raw ->
+                // 仅保留数字和单个小数点，去掉前导0和多余小数点
+                val cleaned = raw.filter { c -> c.isDigit() || c == '.' }.let { s ->
+                    val firstDot = s.indexOf('.')
+                    if (firstDot < 0) s
+                    else s.substring(0, firstDot + 1) + s.substring(firstDot + 1).filter { it != '.' }
+                }
+                onValueChange(if (cleaned.isEmpty() || cleaned == ".") cleaned else cleaned.toDoubleOrNull()?.toString() ?: value)
+            },
             modifier = Modifier.weight(1f),
             textStyle = MaterialTheme.typography.headlineMedium.copy(textAlign = TextAlign.Center),
             prefix = { Text("¥", color = InkSoft) },
