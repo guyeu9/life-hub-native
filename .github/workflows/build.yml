@@ -37,8 +37,9 @@ jobs:
         run: chmod +x ./gradlew
 
       # 仅当仓库配置了签名密钥 Secrets 时执行：解码 base64 密钥库并设置签名环境变量
+      # 注意：step 的 if 在 env: 应用前评估，必须直接用 secrets context 判断，否则永远为空
       - name: Prepare signing keystore (if secrets present)
-        if: ${{ env.KEYSTORE_BASE64 != '' }}
+        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
@@ -50,7 +51,7 @@ jobs:
           echo "HAS_KEYSTORE=true" >> $GITHUB_ENV
 
       - name: Build signed release APK
-        if: ${{ env.HAS_KEYSTORE == 'true' }}
+        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
         env:
           KEYSTORE_PATH: ${{ env.KEYSTORE_PATH }}
           KEYSTORE_PASSWORD: ${{ env.KEYSTORE_PASSWORD }}
@@ -59,7 +60,7 @@ jobs:
         run: ./gradlew assembleRelease --no-daemon --stacktrace
 
       - name: Build debug APK (no signing secrets available)
-        if: ${{ env.HAS_KEYSTORE != 'true' }}
+        if: ${{ secrets.KEYSTORE_BASE64 == '' }}
         run: ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Locate built APK(s)
@@ -89,7 +90,7 @@ jobs:
         run: |
           echo "## APK 构建结果" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ env.HAS_KEYSTORE }}" = "true" ]; then
+          if [ "${{ secrets.KEYSTORE_BASE64 }}" != "" ]; then
             echo "✅ 已使用 Secrets 中的密钥库签名 release APK" >> $GITHUB_STEP_SUMMARY
           else
             echo "ℹ️ 未配置签名 Secrets（KEYSTORE_BASE64/KEYSTORE_PASSWORD/KEY_ALIAS/KEY_PASSWORD），已构建 debug APK" >> $GITHUB_STEP_SUMMARY
